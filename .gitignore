@@ -1,0 +1,27 @@
+# Environment
+.env
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Data (M2 backfill cache — don't commit raw pulls)
+data/raw/
+*.parquet
+
+# ML artifacts (M6 — models get versioned separately, not via git)
+*.joblib
+*.pkl
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
