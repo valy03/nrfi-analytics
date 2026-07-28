@@ -51,7 +51,11 @@ successfully calling the backend.
 
 # M1 — Data Collection: MLB Stats API (Operational)
 
-**Status:** Not Started
+**Status:** Done (2026-07-27) — `app.collection.mlb_stats` pulls the daily
+schedule + probable pitchers via the MLB-StatsAPI wrapper. Verified against
+today's slate (games with pitchers where announced, `TBD` otherwise) and a
+past date (2024-04-10, returning `Final` statuses and scores). 9 mocked unit
+tests pass.
 
 **Goal:** Can reliably pull today's MLB schedule and confirmed starting
 pitchers on demand.
@@ -344,7 +348,7 @@ Not sequenced yet — pull from planning.md's Stretch Features list once MVP
 | # | Milestone | Depends On | Status |
 |---|-----------|------------|--------|
 | M0 | Project Scaffolding | — | Done |
-| M1 | MLB Stats API Collection | M0 | Not Started |
+| M1 | MLB Stats API Collection | M0 | Done |
 | M2 | Statcast Historical Backfill | M0 | Not Started |
 | M3 | Database Schema & Ingestion | M1, M2 | Not Started |
 | M4 | Feature Engineering Pipeline | M3 | Not Started |

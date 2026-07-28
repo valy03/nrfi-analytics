@@ -12,10 +12,9 @@ running what exists right now (M0).
 
 ## Status
 
-**M0 — Project Scaffolding.** See `docs/milestones.md` for the full
-roadmap. Nothing real happens yet — this milestone just proves the stack
-boots end to end: Postgres up, backend health check responding, frontend
-loading and successfully calling the backend.
+**M1 — MLB Stats API Collection (done).** On top of the M0 scaffolding, the
+backend can now pull the daily MLB schedule and probable starting pitchers
+for any date. See `docs/milestones.md` for the full roadmap.
 
 ---
 
@@ -55,6 +54,24 @@ Once you've confirmed all three locally, M0 is done — move on to M1
 
 ---
 
+## Data collection (M1)
+
+Pull the schedule + probable pitchers for a date (runs inside the backend
+container, which has the MLB-StatsAPI dependency):
+
+```bash
+docker compose exec backend python -m app.collection.mlb_stats                 # today
+docker compose exec backend python -m app.collection.mlb_stats --date 2024-04-10
+docker compose exec backend python -m app.collection.mlb_stats --date 2024-04-10 --json
+```
+
+Probable pitchers show as `TBD` until MLB announces them. Past dates return
+final statuses and scores. Run the tests with:
+
+```bash
+docker compose exec backend python -m pytest
+```
+
 ## Repo structure
 
 ```
@@ -63,6 +80,7 @@ nrfi-analytics/
 │   └── app/
 │       ├── main.py     Entrypoint, health check
 │       ├── config.py   Settings (env-driven)
+│       ├── collection/ Data collection — mlb_stats.py (M1)
 │       └── routers/    Empty for now — populated starting M8
 ├── frontend/           React + TypeScript + Tailwind (Vite)
 │   └── src/
