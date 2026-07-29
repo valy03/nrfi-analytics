@@ -13,8 +13,10 @@ node_modules/
 dist/
 .vite/
 
-# Data (M2 backfill cache — don't commit raw pulls)
+# Data (M2 backfill cache + derived datasets — don't commit)
 data/raw/
+data/processed/
+backend/data/
 *.parquet
 
 # ML artifacts (M6 — models get versioned separately, not via git)

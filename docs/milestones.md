@@ -77,7 +77,16 @@ pitchers on demand.
 
 # M2 — Data Collection: Statcast Historical Backfill
 
-**Status:** Not Started
+**Status:** Done (2026-07-27) — `app.collection.statcast_backfill` pulls
+Statcast pitch data (chunked by month, cached to parquet, with retry on
+transient Savant connection drops), derives one NRFI-labeled row per game
+chunk-by-chunk (bounded memory), and merges idempotently into
+`data/processed/nrfi_games.parquet`. **Full 2018–2025 window backfilled:
+17,906 games, 0 duplicates, 0 null labels, 50.2% NRFI** (per-season 47–53%,
+2020 correctly 898 for the COVID year). Labels cross-checked 24/24 against the
+MLB Stats API linescore across multiple seasons. 11 mocked unit tests pass.
+Backfill is incremental/idempotent — re-running reuses cached chunks and never
+duplicates games; top up with recent games by extending `--end`.
 
 **Goal:** A local historical dataset of pitch-level data exists, from which
 NRFI/YRFI outcomes can be derived for every game in the training window.
@@ -349,7 +358,7 @@ Not sequenced yet — pull from planning.md's Stretch Features list once MVP
 |---|-----------|------------|--------|
 | M0 | Project Scaffolding | — | Done |
 | M1 | MLB Stats API Collection | M0 | Done |
-| M2 | Statcast Historical Backfill | M0 | Not Started |
+| M2 | Statcast Historical Backfill | M0 | Done |
 | M3 | Database Schema & Ingestion | M1, M2 | Not Started |
 | M4 | Feature Engineering Pipeline | M3 | Not Started |
 | M5 | Baseline ML Model | M4 | Not Started |

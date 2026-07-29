@@ -12,9 +12,10 @@ running what exists right now (M0).
 
 ## Status
 
-**M1 — MLB Stats API Collection (done).** On top of the M0 scaffolding, the
-backend can now pull the daily MLB schedule and probable starting pitchers
-for any date. See `docs/milestones.md` for the full roadmap.
+**M1 + M2 — Data Collection (done).** On top of the M0 scaffolding, the
+backend can pull the daily MLB schedule and probable starting pitchers (M1),
+and backfill historical Statcast pitch data into a per-game NRFI-labeled
+dataset (M2). See `docs/milestones.md` for the full roadmap.
 
 ---
 
@@ -66,7 +67,28 @@ docker compose exec backend python -m app.collection.mlb_stats --date 2024-04-10
 ```
 
 Probable pitchers show as `TBD` until MLB announces them. Past dates return
-final statuses and scores. Run the tests with:
+final statuses and scores.
+
+### Historical Statcast backfill (M2)
+
+Pull pitch-level Statcast data and derive one NRFI-labeled row per game into
+`data/processed/nrfi_games.parquet`:
+
+```bash
+# A small window (fast — good for a sanity check):
+docker compose exec backend python -m app.collection.statcast_backfill --start 2023-04-01 --end 2023-04-07
+
+# The full training window (LONG download, multi-GB — run when ready):
+docker compose exec backend python -m app.collection.statcast_backfill --start 2018-01-01 --end 2025-12-31
+```
+
+Raw pulls are chunked by month and cached to `data/raw/statcast/`, so a
+re-run reuses the cache instead of re-hitting Baseball Savant, and merges are
+deduped by `game_pk` (safe to re-run). Regular season only by default; add
+`--include-postseason` to keep spring/postseason games, or `--force` to
+re-download cached chunks. The `data/` directory is gitignored.
+
+### Tests
 
 ```bash
 docker compose exec backend python -m pytest
@@ -80,7 +102,7 @@ nrfi-analytics/
 │   └── app/
 │       ├── main.py     Entrypoint, health check
 │       ├── config.py   Settings (env-driven)
-│       ├── collection/ Data collection — mlb_stats.py (M1)
+│       ├── collection/ Data collection — mlb_stats.py (M1), statcast_backfill.py (M2)
 │       └── routers/    Empty for now — populated starting M8
 ├── frontend/           React + TypeScript + Tailwind (Vite)
 │   └── src/
