@@ -11,7 +11,14 @@ import datetime as dt
 import pytest
 
 from app.collection import mlb_stats
-from app.collection.mlb_stats import Game, MLBStatsAPIError, fetch_schedule
+from app.collection.mlb_stats import (
+    Game,
+    MLBStatsAPIError,
+    fetch_first_inning_result,
+    fetch_probable_pitcher_ids,
+    fetch_schedule,
+    mlb_today,
+)
 
 # A scheduled game with both starters announced.
 GAME_WITH_PITCHERS = {
@@ -136,10 +143,17 @@ def test_date_object_is_accepted(fake_schedule):
     assert calls["date"] == "07/01/2025"
 
 
-def test_default_date_is_today(fake_schedule):
+def test_default_date_is_today_in_eastern(fake_schedule):
+    """MLB's game day is Eastern. On a UTC host late at night the two dates
+    disagree, and defaulting to UTC would pull tomorrow's slate."""
     calls = fake_schedule([])
     fetch_schedule()
-    assert calls["date"] == dt.date.today().strftime("%m/%d/%Y")
+    assert calls["date"] == mlb_today().strftime("%m/%d/%Y")
+
+
+def test_mlb_today_tracks_eastern_not_utc():
+    eastern_now = dt.datetime.now(mlb_stats.MLB_TIMEZONE)
+    assert mlb_today() == eastern_now.date()
 
 
 def test_invalid_date_raises(fake_schedule):
@@ -155,3 +169,113 @@ def test_api_failure_is_wrapped(monkeypatch):
     monkeypatch.setattr(mlb_stats.statsapi, "schedule", _boom)
     with pytest.raises(MLBStatsAPIError, match="Failed to fetch schedule"):
         fetch_schedule("2025-07-01")
+
+
+# --- probable pitcher ids (M3 needs them as foreign keys) ------------------
+
+HYDRATED_SCHEDULE = {
+    "dates": [
+        {
+            "games": [
+                {
+                    "gamePk": 745804,
+                    "teams": {
+                        "away": {"probablePitcher": {"id": 543037}},
+                        "home": {"probablePitcher": {"id": 678394}},
+                    },
+                },
+                {  # starters not announced yet
+                    "gamePk": 745900,
+                    "teams": {"away": {}, "home": {}},
+                },
+            ]
+        }
+    ]
+}
+
+
+def test_pitcher_ids_are_extracted_from_the_hydrated_feed(monkeypatch):
+    monkeypatch.setattr(
+        mlb_stats.statsapi, "get", lambda endpoint, params: HYDRATED_SCHEDULE
+    )
+    ids = fetch_probable_pitcher_ids("2025-07-01")
+
+    assert ids[745804] == (543037, 678394)
+    assert ids[745900] == (None, None)
+
+
+def test_fetch_schedule_merges_pitcher_ids(fake_schedule, monkeypatch):
+    fake_schedule([GAME_WITH_PITCHERS])
+    monkeypatch.setattr(
+        mlb_stats.statsapi, "get", lambda endpoint, params: HYDRATED_SCHEDULE
+    )
+
+    g = fetch_schedule("2025-07-01", with_pitcher_ids=True)[0]
+
+    assert g.away_probable_pitcher_id == 543037
+    assert g.home_probable_pitcher_id == 678394
+    assert g.away_probable_pitcher == "Gerrit Cole"  # name still mapped
+
+
+def test_pitcher_ids_are_not_fetched_by_default(fake_schedule, monkeypatch):
+    fake_schedule([GAME_WITH_PITCHERS])
+
+    def _should_not_be_called(endpoint, params):
+        raise AssertionError("hydrated request made without with_pitcher_ids")
+
+    monkeypatch.setattr(mlb_stats.statsapi, "get", _should_not_be_called)
+
+    g = fetch_schedule("2025-07-01")[0]
+    assert g.away_probable_pitcher_id is None
+
+
+# --- first-inning result (the operational NRFI label) ----------------------
+
+
+def _linescore(*innings):
+    return {"innings": list(innings)}
+
+
+def test_first_inning_result_reads_the_linescore(monkeypatch):
+    monkeypatch.setattr(
+        mlb_stats.statsapi,
+        "get",
+        lambda endpoint, params: _linescore(
+            {"num": 1, "away": {"runs": 0}, "home": {"runs": 0}},
+            {"num": 2, "away": {"runs": 3}, "home": {"runs": 0}},
+        ),
+    )
+    result = fetch_first_inning_result(745804)
+
+    assert result.away_runs == 0 and result.home_runs == 0
+    assert result.total_runs == 0
+    assert result.nrfi is True  # the 2nd-inning runs don't count
+
+
+def test_first_inning_result_detects_yrfi(monkeypatch):
+    monkeypatch.setattr(
+        mlb_stats.statsapi,
+        "get",
+        lambda endpoint, params: _linescore(
+            {"num": 1, "away": {"runs": 2}, "home": {"runs": 1}}
+        ),
+    )
+    result = fetch_first_inning_result(745804)
+
+    assert result.total_runs == 3
+    assert result.nrfi is False
+
+
+def test_first_inning_still_in_progress_returns_none(monkeypatch):
+    # Top of the 1st: the home half hasn't been batted, so no runs key.
+    monkeypatch.setattr(
+        mlb_stats.statsapi,
+        "get",
+        lambda endpoint, params: _linescore({"num": 1, "away": {"runs": 0}, "home": {}}),
+    )
+    assert fetch_first_inning_result(745804) is None
+
+
+def test_game_with_no_innings_returns_none(monkeypatch):
+    monkeypatch.setattr(mlb_stats.statsapi, "get", lambda endpoint, params: _linescore())
+    assert fetch_first_inning_result(745804) is None

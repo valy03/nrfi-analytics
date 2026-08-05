@@ -17,13 +17,25 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import json
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
+
+from zoneinfo import ZoneInfo
 
 import statsapi
+
+# MLB's "game day" is Eastern, not UTC. On a UTC host at 23:40 ET the two
+# disagree, and a daily job would silently pull tomorrow's slate — so every
+# "today" in this project resolves through mlb_today().
+MLB_TIMEZONE = ZoneInfo("America/New_York")
 
 
 class MLBStatsAPIError(RuntimeError):
     """Raised when the MLB Stats API can't be reached or returns bad data."""
+
+
+def mlb_today() -> dt.date:
+    """Today's date in MLB's scheduling timezone (US Eastern)."""
+    return dt.datetime.now(MLB_TIMEZONE).date()
 
 
 @dataclass(frozen=True)
@@ -33,6 +45,11 @@ class Game:
     Probable pitchers are ``None`` until MLB announces them. Scores are
     ``None`` for games that haven't started, and populated for in-progress
     or finished games (which is how past dates return boxscore-ish data).
+
+    Pitcher *ids* are only populated when ``fetch_schedule`` is called with
+    ``with_pitcher_ids=True`` — the wrapper's schedule feed carries names
+    only, so ids cost a second (hydrated) request. See M3 ingestion, which
+    needs them as foreign keys.
     """
 
     game_id: int
@@ -49,6 +66,11 @@ class Game:
     home_score: int | None
     doubleheader: bool
     game_num: int
+    game_date: str | None = None
+    game_type: str | None = None
+    venue_id: int | None = None
+    away_probable_pitcher_id: int | None = None
+    home_probable_pitcher_id: int | None = None
 
     @property
     def matchup(self) -> str:
@@ -58,6 +80,32 @@ class Game:
     def pitchers_announced(self) -> bool:
         """True only when BOTH starters are confirmed."""
         return bool(self.away_probable_pitcher and self.home_probable_pitcher)
+
+    @property
+    def is_final(self) -> bool:
+        return self.status == "Final"
+
+
+@dataclass(frozen=True)
+class FirstInningResult:
+    """First-inning runs for one game, straight from the linescore.
+
+    This is the operational counterpart to the M2 Statcast label: it lets a
+    daily run label today's games as soon as the 1st is in the books, without
+    waiting on a Savant backfill.
+    """
+
+    game_id: int
+    away_runs: int
+    home_runs: int
+
+    @property
+    def total_runs(self) -> int:
+        return self.away_runs + self.home_runs
+
+    @property
+    def nrfi(self) -> bool:
+        return self.total_runs == 0
 
 
 def _clean_str(value: object) -> str | None:
@@ -81,7 +129,7 @@ def _clean_int(value: object) -> int | None:
 def _to_api_date(date: str | dt.date | None) -> str:
     """Accept ISO ``YYYY-MM-DD`` (or a date) and return the API's MM/DD/YYYY."""
     if date is None:
-        date = dt.date.today()
+        date = mlb_today()
     if isinstance(date, dt.date):
         return date.strftime("%m/%d/%Y")
     try:
@@ -112,15 +160,61 @@ def _to_game(raw: dict) -> Game:
         # "Y" = traditional doubleheader, "S" = split; both mean 2 games.
         doubleheader=doubleheader in {"Y", "S"},
         game_num=_clean_int(raw.get("game_num")) or 1,
+        game_date=_clean_str(raw.get("game_date")),
+        game_type=_clean_str(raw.get("game_type")),
+        venue_id=_clean_int(raw.get("venue_id")),
     )
 
 
-def fetch_schedule(date: str | dt.date | None = None) -> list[Game]:
+def fetch_probable_pitcher_ids(
+    date: str | dt.date | None = None,
+) -> dict[int, tuple[int | None, int | None]]:
+    """Map ``game_id -> (away_pitcher_id, home_pitcher_id)`` for a date.
+
+    The MLB-StatsAPI wrapper's ``schedule()`` exposes probable pitchers by
+    name only. Ids come from the raw endpoint with ``probablePitcher``
+    hydrated — which is what M3 needs to key the ``pitchers`` table on the
+    MLB person id rather than on a name string.
+    """
+    api_date = _to_api_date(date)
+    try:
+        payload = statsapi.get(
+            "schedule",
+            {"sportId": 1, "date": api_date, "hydrate": "probablePitcher"},
+        )
+    except Exception as exc:
+        raise MLBStatsAPIError(
+            f"Failed to fetch probable pitcher ids for {api_date}: {exc}"
+        ) from exc
+
+    ids: dict[int, tuple[int | None, int | None]] = {}
+    for day in payload.get("dates", []):
+        for game in day.get("games", []):
+            game_id = _clean_int(game.get("gamePk"))
+            if game_id is None:
+                continue
+            teams = game.get("teams", {})
+            ids[game_id] = tuple(  # type: ignore[assignment]
+                _clean_int(
+                    (teams.get(side, {}).get("probablePitcher") or {}).get("id")
+                )
+                for side in ("away", "home")
+            )
+    return ids
+
+
+def fetch_schedule(
+    date: str | dt.date | None = None, with_pitcher_ids: bool = False
+) -> list[Game]:
     """Return the MLB schedule for a date (default: today).
 
     ``date`` accepts an ISO string (YYYY-MM-DD) or a ``datetime.date``.
     Returns an empty list when no games are scheduled. Raises
     ``MLBStatsAPIError`` on a bad date or an API/network failure.
+
+    ``with_pitcher_ids`` costs one extra request and fills in
+    ``away/home_probable_pitcher_id``; it's off by default because only the
+    database ingestion (M3) needs the ids.
     """
     api_date = _to_api_date(date)
     try:
@@ -129,7 +223,44 @@ def fetch_schedule(date: str | dt.date | None = None) -> list[Game]:
         raise MLBStatsAPIError(
             f"Failed to fetch schedule for {api_date}: {exc}"
         ) from exc
-    return [_to_game(g) for g in raw_games]
+
+    games = [_to_game(g) for g in raw_games]
+    if not (with_pitcher_ids and games):
+        return games
+
+    pitcher_ids = fetch_probable_pitcher_ids(date)
+    return [
+        replace(
+            g,
+            away_probable_pitcher_id=pitcher_ids.get(g.game_id, (None, None))[0],
+            home_probable_pitcher_id=pitcher_ids.get(g.game_id, (None, None))[1],
+        )
+        for g in games
+    ]
+
+
+def fetch_first_inning_result(game_id: int) -> FirstInningResult | None:
+    """Return first-inning runs for a game, or ``None`` if the 1st isn't done.
+
+    Reads the linescore rather than the boxscore because the linescore is
+    inning-indexed — exactly the shape the NRFI label needs.
+    """
+    try:
+        linescore = statsapi.get("game_linescore", {"gamePk": game_id})
+    except Exception as exc:
+        raise MLBStatsAPIError(
+            f"Failed to fetch linescore for game {game_id}: {exc}"
+        ) from exc
+
+    for inning in linescore.get("innings", []):
+        if inning.get("num") != 1:
+            continue
+        away = _clean_int(inning.get("away", {}).get("runs"))
+        home = _clean_int(inning.get("home", {}).get("runs"))
+        if away is None or home is None:
+            return None  # 1st still in progress (bottom half not batted yet)
+        return FirstInningResult(game_id=game_id, away_runs=away, home_runs=home)
+    return None
 
 
 def _format_table(games: list[Game]) -> str:
@@ -173,7 +304,7 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps([asdict(g) for g in games], indent=2))
         return 0
 
-    label = args.date or dt.date.today().isoformat()
+    label = args.date or mlb_today().isoformat()
     if not games:
         print(f"No MLB games scheduled for {label}.")
         return 0

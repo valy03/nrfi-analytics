@@ -39,6 +39,8 @@ from pathlib import Path
 import pandas as pd
 import pybaseball
 
+from app.collection.mlb_stats import mlb_today
+
 # Baseball Savant occasionally drops a connection mid-download (IncompleteRead)
 # on a long backfill. Re-fetching a chunk is harmless, so we retry transient
 # failures a few times before giving up on the whole run.
@@ -277,8 +279,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--end",
-        default=dt.date.today().isoformat(),
-        help="End date (YYYY-MM-DD). Defaults to today.",
+        default=mlb_today().isoformat(),
+        help="End date (YYYY-MM-DD). Defaults to today (US Eastern).",
     )
     parser.add_argument(
         "--data-dir",

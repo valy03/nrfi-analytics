@@ -112,7 +112,27 @@ NRFI/YRFI outcomes can be derived for every game in the training window.
 
 # M3 — Database Schema & Ingestion
 
-**Status:** Not Started
+**Status:** Done (2026-08-04) — seven tables (`teams`, `pitchers`, `games`,
+`pitcher_game_stats`, `team_game_stats`, `predictions`,
+`prediction_results`) defined as SQLAlchemy models and created via a single
+Alembic migration that round-trips (`downgrade base` → `upgrade head`) with
+`alembic check` reporting no model drift. **Full M2 backfill loaded: 17,906
+games, 50.2% NRFI, 0 unlabeled** — matching the parquet exactly. Both loaders
+are idempotent: a second run of either reports `0 inserted, 0 updated`.
+
+`games` is deliberately shared by both sources on `game_pk`: the Statcast
+loader writes the first-inning label, the daily loader writes
+schedule/venue/pitchers, and the upsert never overwrites a stored value with
+`None`, so neither erases the other. Verified on 2025-07-01, where 15
+Statcast-labeled rows were enriched in place (`0 inserted, 15 updated`) with
+labels intact. 20/20 stored Statcast labels cross-check against the MLB
+linescore. 57 tests pass (28 new, offline against in-memory SQLite).
+
+Two fixes surfaced along the way: probable-pitcher **ids** (needed as foreign
+keys) aren't in the wrapper's schedule feed, so `fetch_schedule` grew an
+opt-in hydrated lookup; and `date.today()` on a UTC host resolves to
+*tomorrow's* slate late at night, so all "today" defaults now go through
+`mlb_today()` (US Eastern) — which matters for the M7 scheduled job.
 
 **Goal:** Historical and daily data lands in PostgreSQL, not just local
 files.
@@ -359,7 +379,7 @@ Not sequenced yet — pull from planning.md's Stretch Features list once MVP
 | M0 | Project Scaffolding | — | Done |
 | M1 | MLB Stats API Collection | M0 | Done |
 | M2 | Statcast Historical Backfill | M0 | Done |
-| M3 | Database Schema & Ingestion | M1, M2 | Not Started |
+| M3 | Database Schema & Ingestion | M1, M2 | Done |
 | M4 | Feature Engineering Pipeline | M3 | Not Started |
 | M5 | Baseline ML Model | M4 | Not Started |
 | M6 | Model Iteration & Selection | M5 | Not Started |

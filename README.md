@@ -12,10 +12,12 @@ running what exists right now (M0).
 
 ## Status
 
-**M1 + M2 — Data Collection (done).** On top of the M0 scaffolding, the
-backend can pull the daily MLB schedule and probable starting pitchers (M1),
-and backfill historical Statcast pitch data into a per-game NRFI-labeled
-dataset (M2). See `docs/milestones.md` for the full roadmap.
+**M3 — Database Schema & Ingestion (done).** On top of the M0 scaffolding,
+the backend can pull the daily MLB schedule and probable starting pitchers
+(M1), backfill historical Statcast pitch data into a per-game NRFI-labeled
+dataset (M2), and load both into PostgreSQL behind Alembic migrations (M3).
+Next up is M4, the feature engineering pipeline. See `docs/milestones.md` for
+the full roadmap.
 
 ---
 
@@ -88,21 +90,73 @@ deduped by `game_pk` (safe to re-run). Regular season only by default; add
 `--include-postseason` to keep spring/postseason games, or `--force` to
 re-download cached chunks. The `data/` directory is gitignored.
 
+## Database (M3)
+
+The schema lives in `backend/app/models/` and is applied with Alembic.
+
+```bash
+# Create/upgrade the schema (safe to re-run)
+docker compose exec backend alembic upgrade head
+
+# After changing a model, generate a migration and review it before applying
+docker compose exec backend alembic revision --autogenerate -m "what changed"
+docker compose exec backend alembic check      # fails if models drift from the DB
+docker compose exec backend alembic downgrade -1
+```
+
+Seven tables: `teams`, `pitchers`, `games`, `pitcher_game_stats`,
+`team_game_stats`, `predictions`, `prediction_results`. `games` is the spine
+— keyed on `game_pk`, which both data sources share, so the historical and
+daily loaders write to the same row.
+
+### Ingestion
+
+Run the team seed first; everything else foreign-keys to it (the two loaders
+do this for you unless you pass `--skip-teams`).
+
+```bash
+# Reference data — the 30 clubs
+docker compose exec backend python -m app.ingestion.teams
+
+# Historical: the M2 parquet -> games (labels). ~4s for the full 2018-2025 set.
+docker compose exec backend python -m app.ingestion.historical
+docker compose exec backend python -m app.ingestion.historical --season 2024
+
+# Daily: the M1 schedule -> games (matchup, venue, starters, results)
+docker compose exec backend python -m app.ingestion.daily                    # today (US Eastern)
+docker compose exec backend python -m app.ingestion.daily --date 2025-07-01
+docker compose exec backend python -m app.ingestion.daily --start 2025-07-01 --end 2025-07-07
+```
+
+Both loaders are idempotent — a re-run reports `0 inserted, 0 updated` and
+changes nothing. They also compose: the historical loader supplies the NRFI
+label, the daily loader supplies schedule details, and neither overwrites the
+other's columns with nulls. For games that are already final, the daily
+loader reads the linescore and writes the first-inning result, so today's
+games become labeled training rows the same night.
+
 ### Tests
 
 ```bash
 docker compose exec backend python -m pytest
 ```
 
+The suite is fully offline (APIs mocked, in-memory SQLite for the database
+tests) — nothing but the container is required.
+
 ## Repo structure
 
 ```
 nrfi-analytics/
 ├── backend/            FastAPI app
+│   ├── alembic/        Migrations (M3)
 │   └── app/
 │       ├── main.py     Entrypoint, health check
 │       ├── config.py   Settings (env-driven)
 │       ├── collection/ Data collection — mlb_stats.py (M1), statcast_backfill.py (M2)
+│       ├── db/         Engine, session, declarative base (M3)
+│       ├── models/     ORM tables (M3)
+│       ├── ingestion/  Loaders: teams, historical (M2 -> DB), daily (M1 -> DB)
 │       └── routers/    Empty for now — populated starting M8
 ├── frontend/           React + TypeScript + Tailwind (Vite)
 │   └── src/
