@@ -6,18 +6,19 @@ confidence score.
 
 See `docs/` for the full planning trail: `planning.md`, `requirements.md`,
 `research.md`, `milestones.md`, `wireframes.md`. This README only covers
-running what exists right now (M0).
+running what exists right now.
 
 ---
 
 ## Status
 
-**M3 — Database Schema & Ingestion (done).** On top of the M0 scaffolding,
+**M4 — Feature Engineering Pipeline (done).** On top of the M0 scaffolding,
 the backend can pull the daily MLB schedule and probable starting pitchers
 (M1), backfill historical Statcast pitch data into a per-game NRFI-labeled
-dataset (M2), and load both into PostgreSQL behind Alembic migrations (M3).
-Next up is M4, the feature engineering pipeline. See `docs/milestones.md` for
-the full roadmap.
+dataset (M2), load both into PostgreSQL behind Alembic migrations (M3), and
+turn the stored data into a leakage-free 32-feature matrix over 17,933 games
+(M4). Next up is M5, the baseline model. See `docs/milestones.md` for the
+full roadmap.
 
 ---
 
@@ -135,6 +136,46 @@ other's columns with nulls. For games that are already final, the daily
 loader reads the linescore and writes the first-inning result, so today's
 games become labeled training rows the same night.
 
+## Feature engineering (M4)
+
+First, derive per-game first-inning box scores from the cached Statcast
+chunks (no network — it re-reads what M2 already downloaded) and load them
+into the `pitcher_game_stats` / `team_game_stats` tables:
+
+```bash
+docker compose exec backend python -m app.collection.statcast_boxscore   # ~23s for 2018-2025
+docker compose exec backend python -m app.ingestion.game_stats           # ~14s
+```
+
+Then build the feature matrix:
+
+```bash
+docker compose exec backend python -m app.features.pipeline              # -> data/processed/features.parquet
+docker compose exec backend python -m app.features.pipeline --date 2026-08-05   # one slate, inference-style
+docker compose exec backend python -m app.features.shrinkage             # re-derive the shrinkage constants
+```
+
+32 features over ~18k games in about 3 seconds. Two properties matter:
+
+**No leakage.** Every aggregate is a backward `merge_asof` with
+`allow_exact_matches=False`, so a game only sees strictly earlier dates.
+Deleting years of future data and rebuilding produces byte-identical
+features. Same-day games — including both halves of a doubleheader — never
+feed each other, because game 1's result isn't available in the morning when
+the prediction job actually runs.
+
+**Training and inference are the same call.** `compute_features` runs over
+the full history and the caller filters afterwards, so a game's feature row
+is identical whether it's computed the morning before or years later. A game
+that hasn't been played comes back with full features and a null target.
+
+Rates are shrunk toward the league average so a pitcher's first start doesn't
+read as a 100% record. The shrinkage constants are measured, not guessed —
+`app.features.shrinkage` decomposes each stat's observed spread into real
+talent plus sampling noise. (Sanity check: it returns k=86 batters faced for
+first-inning K%, independently reproducing the known ~70 PA stabilization
+point.)
+
 ### Tests
 
 ```bash
@@ -153,10 +194,11 @@ nrfi-analytics/
 │   └── app/
 │       ├── main.py     Entrypoint, health check
 │       ├── config.py   Settings (env-driven)
-│       ├── collection/ Data collection — mlb_stats.py (M1), statcast_backfill.py (M2)
+│       ├── collection/ mlb_stats.py (M1), statcast_backfill.py (M2), statcast_boxscore.py (M4)
 │       ├── db/         Engine, session, declarative base (M3)
 │       ├── models/     ORM tables (M3)
-│       ├── ingestion/  Loaders: teams, historical (M2 -> DB), daily (M1 -> DB)
+│       ├── ingestion/  Loaders: teams, historical, daily (M3), game_stats (M4)
+│       ├── features/   As-of feature pipeline + shrinkage estimator (M4)
 │       └── routers/    Empty for now — populated starting M8
 ├── frontend/           React + TypeScript + Tailwind (Vite)
 │   └── src/

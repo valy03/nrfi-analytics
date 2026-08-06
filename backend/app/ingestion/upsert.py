@@ -18,7 +18,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import select, tuple_
 from sqlalchemy.orm import Session
 
 from app.db.base import Base
@@ -136,18 +136,12 @@ def _load_existing(
 
 
 def _key_filter(model: type[Base], key_cols: Sequence[str], keys: list[tuple]):
-    """Build a WHERE that matches any of ``keys`` (single- or multi-column)."""
+    """Build a WHERE that matches any of ``keys`` (single- or composite).
+
+    Composite keys use a row-value ``IN`` — one comparison per key instead of
+    an OR of ANDs, which matters once a batch runs to thousands of rows.
+    """
     if len(key_cols) == 1:
         return getattr(model, key_cols[0]).in_([k[0] for k in keys])
 
-    return or_(
-        *(
-            and_(
-                *(
-                    getattr(model, col) == value
-                    for col, value in zip(key_cols, key)
-                )
-            )
-            for key in keys
-        )
-    )
+    return tuple_(*(getattr(model, col) for col in key_cols)).in_(keys)

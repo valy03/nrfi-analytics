@@ -155,7 +155,47 @@ files.
 
 # M4 — Feature Engineering Pipeline
 
-**Status:** Not Started
+**Status:** Done (2026-08-05) — `app.features` turns stored data into a
+32-feature matrix over 17,933 labeled games, **0 NaNs, 0 infinities, no
+zero-variance columns**, built in ~3s.
+
+M4 began with a collection step the deliverables didn't spell out: the
+`pitcher_game_stats` / `team_game_stats` tables M3 defined were empty, and
+`games` didn't record who started the 17,906 historical games.
+`app.collection.statcast_boxscore` re-reads the cached Statcast chunks and
+derives per-game first-inning lines (36,081 pitcher lines — 35,812 starters,
+exactly two per game — and 35,812 team lines), which
+`app.ingestion.game_stats` loads. Run attribution cross-checks **1,164 of
+1,164 games** against the independently-derived M2 labels.
+
+Features are as-of by construction: every aggregate is a backward
+`merge_asof` with `allow_exact_matches=False`, so a game only ever sees
+strictly earlier dates. That rules out same-day leakage (a doubleheader's
+game 2 can't read game 1 — legal in hindsight, unavailable at 9am when the
+M7 job runs) and makes training and inference literally the same call.
+
+Cold starts are handled by empirical-Bayes shrinkage with **measured**
+constants (`app.features.shrinkage`), not guessed ones. The first pass used a
+hand-picked k=12 for pitchers and produced a feature spanning 0.61–0.80
+against an outcome spanning only 0.69–0.76 — three times over-dispersed.
+Decomposing observed spread into talent plus sampling noise gives k=182;
+recalibrated, the feature spans 0.058 against an outcome spread of 0.073 and
+the deciles are monotonic. The same estimator returns k=86 batters faced for
+first-inning K%, independently reproducing the known ~70 PA stabilization
+point for strikeout rate.
+
+Verified: deleting 2.5 years of future data and rebuilding changes **nothing**
+(max abs diff 0.0 across 32 features × 10 games); a slate of unplayed games
+gets full feature rows with a null target; per-season NRFI reconciles exactly
+with M2/M3. 17 feature tests, 74 total, all offline.
+
+**Known limitation:** OPS/OBP/SLG are not implemented. They need
+plate-appearance classification from Statcast `events`, and first-inning-only
+slash lines are thin samples; first-inning scoring rate and runs/game carry
+most of the same signal for less machinery. Revisit in M6 if feature
+importance says recency and rate stats matter. Pitcher ERA is deliberately
+replaced by runs allowed — Statcast doesn't mark earned/unearned, and the
+NRFI label counts unearned runs anyway, so runs allowed is better aligned.
 
 **Goal:** A reproducible pipeline turns raw stored data into a feature
 matrix ready for model training.
@@ -380,7 +420,7 @@ Not sequenced yet — pull from planning.md's Stretch Features list once MVP
 | M1 | MLB Stats API Collection | M0 | Done |
 | M2 | Statcast Historical Backfill | M0 | Done |
 | M3 | Database Schema & Ingestion | M1, M2 | Done |
-| M4 | Feature Engineering Pipeline | M3 | Not Started |
+| M4 | Feature Engineering Pipeline | M3 | Done |
 | M5 | Baseline ML Model | M4 | Not Started |
 | M6 | Model Iteration & Selection | M5 | Not Started |
 | M7 | Prediction Service & Automation | M1, M6 | Not Started |
