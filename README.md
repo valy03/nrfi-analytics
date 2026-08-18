@@ -12,13 +12,15 @@ running what exists right now.
 
 ## Status
 
-**M4 — Feature Engineering Pipeline (done).** On top of the M0 scaffolding,
-the backend can pull the daily MLB schedule and probable starting pitchers
-(M1), backfill historical Statcast pitch data into a per-game NRFI-labeled
-dataset (M2), load both into PostgreSQL behind Alembic migrations (M3), and
-turn the stored data into a leakage-free 32-feature matrix over 17,933 games
-(M4). Next up is M5, the baseline model. See `docs/milestones.md` for the
-full roadmap.
+**M5 — Baseline ML Model (done).** On top of the M0 scaffolding, the backend
+can pull the daily MLB schedule and probable starting pitchers (M1), backfill
+historical Statcast pitch data into a per-game NRFI-labeled dataset (M2),
+load both into PostgreSQL behind Alembic migrations (M3), turn the stored
+data into a leakage-free 32-feature matrix over 17,933 games (M4), and train
+a season-split Logistic Regression baseline that beats a majority-class and
+a league-average reference on held-out 2024-2026 games (M5). Next up is M6,
+model iteration and selection. See `docs/milestones.md` for the full
+roadmap.
 
 ---
 
@@ -176,6 +178,22 @@ talent plus sampling noise. (Sanity check: it returns k=86 batters faced for
 first-inning K%, independently reproducing the known ~70 PA stabilization
 point.)
 
+## Baseline model (M5)
+
+```bash
+docker compose exec backend python -m app.training.baseline
+```
+
+Trains a scaled Logistic Regression on `data/processed/features.parquet`
+(rebuilding it via M4 if missing), evaluates it on 2024-2026 — seasons the
+model never trains on — and checks it against two references fit on the
+training set only: always guess the more common label, and always guess the
+training NRFI rate. Saves the fitted model and a metrics report to
+`data/models/` (gitignored — rerun the command to regenerate).
+
+Full numbers and the reasoning behind the season-based split live in
+`docs/milestones.md` under M5.
+
 ### Tests
 
 ```bash
@@ -199,6 +217,7 @@ nrfi-analytics/
 │       ├── models/     ORM tables (M3)
 │       ├── ingestion/  Loaders: teams, historical, daily (M3), game_stats (M4)
 │       ├── features/   As-of feature pipeline + shrinkage estimator (M4)
+│       ├── training/   Time-based split, baseline model + evaluation (M5)
 │       └── routers/    Empty for now — populated starting M8
 ├── frontend/           React + TypeScript + Tailwind (Vite)
 │   └── src/

@@ -221,7 +221,53 @@ matrix ready for model training.
 
 # M5 — Baseline ML Model
 
-**Status:** Not Started
+**Status:** Done (2026-08-17) — `app.training` trains a scaled Logistic
+Regression on the M4 feature matrix and evaluates it against two naive
+references. Run it with `python -m app.training.baseline`.
+
+The split is by **season**, not randomly: train on 2018-2023 (n=13,047),
+test on 2024-2026 (n=4,886, including the 27-game 2026 stub currently in the
+database). A random split would let the model train on some 2025 games and
+get evaluated on others — silently leaking roster/era information the model
+will never have in production, where it only ever predicts a season it
+hasn't seen. This is a different concern from the M4 as-of leakage guarantee
+(that rules out same-game/future-date leakage no matter how the matrix is
+sliced); this is about measuring forward generalization honestly.
+
+Two references, each fit on the training set only:
+
+| | Accuracy | ROC AUC | Log loss |
+|---|---|---|---|
+| Logistic Regression | **0.519** | **0.515** | 0.6948 |
+| Majority-class (always predict training's more common label) | 0.484 | 0.500 | 17.81 |
+| League-average rate (always predict training's NRFI rate) | 0.484 | 0.500 | 0.6934 |
+
+The model beats the majority-class reference on accuracy and ranks games
+better than chance (AUC > 0.5) — both gating criteria in
+`app.training.baseline.passed`. It does *not* beat the league-average
+reference on log loss, and that's reported rather than hidden or gated on:
+log loss rewards calibration and discrimination together, and M4 already
+established that first-inning pitcher talent has a standard deviation of
+just 0.034 against a 0.712 mean — most of the spread is sampling noise, not
+skill. With AUC this close to 0.5, the log-loss improvement a real but weak
+edge should produce is the same order of magnitude as noise over ~4,900 held-
+out games, so a model can rank better than chance and still land within
+noise of the constant baseline on log loss. That isn't evidence of no
+signal, just of a small one — which is the honest state of a first-inning
+market before adding weather, bullpen, or park-specific features (M6+).
+
+The majority-class reference's log loss (17.81) looks absurd by design: it
+asserts 100% certainty in one label, so every miss costs almost nothing in
+accuracy but catastrophically in log loss. That's exactly why log loss is
+graded against the league-average reference instead — a fair calibration
+floor — while accuracy is graded against the majority-class reference — a
+fair discrimination floor. Grading both against the same reference would
+have been the wrong comparison for one of the two.
+
+Artifacts (`data/models/m5-v1.joblib`, `data/models/m5-v1_metrics.json`) are
+gitignored per M6's existing `*.joblib` rule — regenerate with the command
+above rather than expecting them in the checkout. 12 new offline tests
+(synthetic data, no database), 86 total.
 
 **Goal:** A working, interpretable baseline model exists and is honestly
 evaluated.
@@ -421,7 +467,7 @@ Not sequenced yet — pull from planning.md's Stretch Features list once MVP
 | M2 | Statcast Historical Backfill | M0 | Done |
 | M3 | Database Schema & Ingestion | M1, M2 | Done |
 | M4 | Feature Engineering Pipeline | M3 | Done |
-| M5 | Baseline ML Model | M4 | Not Started |
+| M5 | Baseline ML Model | M4 | Done |
 | M6 | Model Iteration & Selection | M5 | Not Started |
 | M7 | Prediction Service & Automation | M1, M6 | Not Started |
 | M8 | REST API | M7, M3 | Not Started |
