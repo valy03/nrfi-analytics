@@ -34,6 +34,12 @@ services:
   scheduler:
     build: ./backend
     restart: unless-stopped
+    # Opt-in: a plain `docker compose up` should not silently bring this
+    # back after it's been stopped (see docs/milestones.md M7 — running it
+    # continuously needs a laptop that stays awake for days, which isn't
+    # worth doing until M12 puts it somewhere that actually stays up).
+    # Start it deliberately with `docker compose --profile scheduler up -d`.
+    profiles: ["scheduler"]
     env_file:
       - .env
     environment:

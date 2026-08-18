@@ -20,10 +20,11 @@ Alembic migrations (M3), turn the stored data into a leakage-free
 32-feature matrix over 17,933 games (M4), train a season-split Logistic
 Regression baseline (M5), head-to-head it against an XGBoost candidate that
 loses on held-out AUC so the simpler model stays champion (M6), and
-generate + store real predictions for the champion model automatically
-every morning via an unattended scheduler (M7). M7 is code-complete and
-verified against live data, but its exit criteria needs the scheduler to
-actually run across a few real game days before it's marked Done — see
+generate + store real predictions for the champion model on demand, with an
+optional scheduler that automates the timing (M7). M7 is code-complete and
+verified against live data; predictions are kept current with manual job
+runs for now, with unattended scheduling verification deferred to M12's
+real deployment rather than a laptop that has to stay awake for days — see
 `docs/milestones.md`.
 
 ---
@@ -234,17 +235,28 @@ recently selected as champion (M6), and upserts the results into
 `predictions` (M3). Safe to re-run any time; a slate already predicted comes
 back `0 inserted, 0 updated, N unchanged`.
 
-The `scheduler` service in `docker-compose.yml` runs this automatically —
-`docker compose up -d` brings it up alongside everything else. It sleeps
-until 09:00 US/Eastern, runs the job, logs the result, and repeats:
+A `scheduler` service in `docker-compose.yml` can run this automatically —
+it sleeps until 09:00 US/Eastern, runs the job, logs the result, and
+repeats. It's opt-in (a Compose *profile*), not part of the default
+`docker compose up`, since running it continuously would mean keeping
+Docker Desktop — and the machine under it — awake for days just to prove
+the loop fires. That's a real cost not worth paying locally; it starts
+mattering once M12 puts this somewhere that's actually supposed to stay up.
+Start it deliberately when you want to observe it:
 
 ```bash
+docker compose --profile scheduler up -d scheduler
 docker compose logs -f scheduler
 ```
 
+For now, predictions are kept current with manual runs of the same job the
+scheduler would call — no different in what it does, just triggered by a
+person instead of a timer.
+
 Full reasoning — why 09:00 ET, the allowlist-of-pre-game-statuses design,
-and a real bug this surfaced in the M4 feature pipeline (unannounced
-starters crashed it) — lives in `docs/milestones.md` under M7.
+the real bug this surfaced in the M4 feature pipeline (unannounced starters
+crashed it), and the decision to defer unattended verification to M12 —
+lives in `docs/milestones.md` under M7.
 
 ### Tests
 
@@ -277,7 +289,7 @@ nrfi-analytics/
 │       ├── App.tsx     Placeholder page — becomes M9 dashboard
 │       └── main.tsx    Entrypoint
 ├── docs/               Planning documents (this is the source of truth)
-├── docker-compose.yml  Postgres + backend + frontend + scheduler, one command
+├── docker-compose.yml  Postgres + backend + frontend, one command (+ opt-in scheduler)
 ├── .env.example        Required env vars, no real secrets
 └── README.md           This file
 ```

@@ -363,11 +363,12 @@ total.
 
 # M7 — Prediction Service & Daily Automation
 
-**Status:** In Progress (started 2026-08-17) — everything is built and has
-been verified against real, live data; the one thing left is letting it run
-unattended across real game days, which needs elapsed calendar time, not
-more code. Don't mark this Done until that's actually observed — see
-"What's left" below.
+**Status:** In Progress (started 2026-08-17) — everything is built and
+verified against real, live data. The only remaining exit criterion (running
+*unattended* across a few real game days) is deliberately deferred to M12,
+rather than chased on a laptop that would have to stay awake for days to
+prove it — see "Decision" below. Predictions keep flowing via manual job
+runs in the meantime.
 
 `app/prediction/` ties M1 → M3 → M4 → M6 together:
 - `infer.py` loads whatever `app.training.compare` most recently selected as
@@ -421,13 +422,28 @@ stored in Postgres with the correct champion model/version attached
 (`logistic_regression_baseline` / `m5-v1`). Re-running reported
 `0 inserted, 0 updated, 12 unchanged` — idempotent, as designed.
 
-**What's left for Done:** the exit criterion is the job running successfully
-*unattended* across a few consecutive real game days, landing predictions
-before first pitch without anyone watching it. That's now live —
-`docker compose up -d scheduler` is running — but it needs actual elapsed
-days to observe, not more code. Check back via
-`docker compose logs scheduler` and the `predictions` table before flipping
-this to Done.
+**Decision (2026-08-17): deferring the "observed unattended" check to M12,
+not chasing it locally.** The scheduler works — verified it boots, computes
+the correct next-fire time, and would have fired at 09:00 ET the next
+morning — but "unattended for a few real game days" on a laptop actually
+means "Docker Desktop, and the machine under it, staying awake continuously
+for days," which isn't a cost worth paying just to check a box early. That's
+solving the problem in the wrong place: a scheduled job that only survives
+while someone's laptop is open isn't meaningfully unattended anyway. The
+`scheduler` container is implemented, tested (`next_run_at` in
+`test_scheduler.py`), and wired into `docker-compose.yml` — it's stopped for
+now, not removed. Real unattended verification happens once M12 puts this on
+Railway, where "unattended" actually means something.
+
+In the meantime, predictions keep landing via manual runs of the same job
+the scheduler would call —
+
+    docker compose exec backend python -m app.prediction.job
+
+— which exercises every part of M7 except the timer. M7 stays **In
+Progress**; it moves to Done alongside (or right after) M12, once the
+scheduled version has actually been observed running without anyone
+watching it.
 
 **Goal:** Predictions generate automatically every day with no manual
 steps, per requirements.md.
