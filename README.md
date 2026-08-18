@@ -12,15 +12,19 @@ running what exists right now.
 
 ## Status
 
-**M6 — Model Iteration & Selection (done).** On top of the M0 scaffolding,
-the backend can pull the daily MLB schedule and probable starting pitchers
-(M1), backfill historical Statcast pitch data into a per-game NRFI-labeled
-dataset (M2), load both into PostgreSQL behind Alembic migrations (M3), turn
-the stored data into a leakage-free 32-feature matrix over 17,933 games (M4),
-train a season-split Logistic Regression baseline (M5), and head-to-head it
-against an XGBoost candidate — which loses on held-out AUC, so the simpler
-model stays the champion (M6). Next up is M7, the daily prediction service.
-See `docs/milestones.md` for the full roadmap.
+**M7 — Prediction Service & Daily Automation (in progress).** On top of the
+M0 scaffolding, the backend can pull the daily MLB schedule and probable
+starting pitchers (M1), backfill historical Statcast pitch data into a
+per-game NRFI-labeled dataset (M2), load both into PostgreSQL behind
+Alembic migrations (M3), turn the stored data into a leakage-free
+32-feature matrix over 17,933 games (M4), train a season-split Logistic
+Regression baseline (M5), head-to-head it against an XGBoost candidate that
+loses on held-out AUC so the simpler model stays champion (M6), and
+generate + store real predictions for the champion model automatically
+every morning via an unattended scheduler (M7). M7 is code-complete and
+verified against live data, but its exit criteria needs the scheduler to
+actually run across a few real game days before it's marked Done — see
+`docs/milestones.md`.
 
 ---
 
@@ -216,6 +220,32 @@ inference path doesn't need to know which family is in production. Full
 numbers, feature importances, and the selection reasoning live in
 `docs/milestones.md` under M6.
 
+## Prediction service & daily automation (M7)
+
+```bash
+docker compose exec backend python -m app.prediction.job                  # today
+docker compose exec backend python -m app.prediction.job --date 2026-08-18
+```
+
+Refreshes the date's schedule (M1/M3), narrows to games that are actually
+safe to predict — not yet started, both starters announced — computes their
+features (M4), scores them with whatever `app.training.compare` most
+recently selected as champion (M6), and upserts the results into
+`predictions` (M3). Safe to re-run any time; a slate already predicted comes
+back `0 inserted, 0 updated, N unchanged`.
+
+The `scheduler` service in `docker-compose.yml` runs this automatically —
+`docker compose up -d` brings it up alongside everything else. It sleeps
+until 09:00 US/Eastern, runs the job, logs the result, and repeats:
+
+```bash
+docker compose logs -f scheduler
+```
+
+Full reasoning — why 09:00 ET, the allowlist-of-pre-game-statuses design,
+and a real bug this surfaced in the M4 feature pipeline (unannounced
+starters crashed it) — lives in `docs/milestones.md` under M7.
+
 ### Tests
 
 ```bash
@@ -240,13 +270,14 @@ nrfi-analytics/
 │       ├── ingestion/  Loaders: teams, historical, daily (M3), game_stats (M4)
 │       ├── features/   As-of feature pipeline + shrinkage estimator (M4)
 │       ├── training/   Split, baseline (M5), XGBoost + comparison/selection (M6)
+│       ├── prediction/ Inference, storage, daily job + scheduler (M7)
 │       └── routers/    Empty for now — populated starting M8
 ├── frontend/           React + TypeScript + Tailwind (Vite)
 │   └── src/
 │       ├── App.tsx     Placeholder page — becomes M9 dashboard
 │       └── main.tsx    Entrypoint
 ├── docs/               Planning documents (this is the source of truth)
-├── docker-compose.yml  Postgres + backend + frontend, one command
+├── docker-compose.yml  Postgres + backend + frontend + scheduler, one command
 ├── .env.example        Required env vars, no real secrets
 └── README.md           This file
 ```

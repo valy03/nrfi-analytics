@@ -363,7 +363,71 @@ total.
 
 # M7 — Prediction Service & Daily Automation
 
-**Status:** Not Started
+**Status:** In Progress (started 2026-08-17) — everything is built and has
+been verified against real, live data; the one thing left is letting it run
+unattended across real game days, which needs elapsed calendar time, not
+more code. Don't mark this Done until that's actually observed — see
+"What's left" below.
+
+`app/prediction/` ties M1 → M3 → M4 → M6 together:
+- `infer.py` loads whatever `app.training.compare` most recently selected as
+  champion (`data/models/champion.joblib` + its metadata) and scores a
+  feature matrix into prediction payloads — label, both probabilities,
+  confidence (distance from a coin flip, rescaled 0-1), and a snapshot of
+  the exact feature values used, so an old prediction stays explainable
+  after the feature pipeline moves on.
+- `store.py` upserts into `predictions`, keyed on `(game_pk, model_version)`
+  — a re-run updates a slate's predictions in place, and a new champion
+  version adds new rows alongside the old ones instead of overwriting
+  history (what M11's model-version comparison will need).
+- `job.py` (`python -m app.prediction.job [--date ...]`) is the orchestrator:
+  refresh the day's schedule via the M1/M3 `app.ingestion.daily.load_date`,
+  narrow to games that are actually safe to predict, compute features for
+  just those games, run inference, store. "Safe to predict" is an allowlist
+  of pre-game statuses (`Scheduled`, `Pre-Game`, `Warmup`, ...) — not a
+  blocklist — plus both starters announced, so an MLB status string the job
+  doesn't recognize defaults to *skip*, and the application never predicts a
+  live or finished game (requirements.md). Skips are counted and printed,
+  not silently dropped.
+- `scheduler.py` (`python -m app.prediction.scheduler`) is the "no manual
+  intervention" half: a small loop that sleeps until 09:00 US/Eastern (the
+  same timezone `mlb_today()` uses, so the two always agree on what day
+  "today" is — comfortably ahead of the 11:00 AM earliest getaway-day first
+  pitch, late enough that most starters are announced by then), runs the
+  job, logs the result, and repeats. Wired as its own `scheduler` service in
+  `docker-compose.yml` (`restart: unless-stopped`) rather than a cron line
+  inside the backend container, so it shows up in `docker compose ps` and
+  its output is `docker compose logs scheduler` like everything else. A
+  failed run is caught, logged, and the loop tries again the next day
+  instead of dying — the M7 "logging/alerting" deliverable.
+
+**A real bug this surfaced:** running the job against real data (tomorrow's
+actual slate, 2026-08-18: 15 games, 3 with a TBD starter) crashed
+`compute_features` — `IntCastingNaNError` on the as-of join. M4's tests only
+ever exercised games with a concrete starting pitcher on both sides, so the
+NULL-until-announced case (the normal state of a few games on any real
+slate) was untested and broken. Fixed in `app/features/compute.py`'s
+`_as_of`: an entity key that's missing gets remapped to a sentinel that
+can't match any real id (real MLB ids are always positive), so it comes
+back with zero prior appearances — the same league-average fallback a
+debut pitcher already gets — instead of crashing the dtype cast. Regression
+test added to `test_features.py`. This is exactly why "run it against real
+data" is part of the exit criteria and not just "the tests pass": the
+synthetic M4 test fixtures never had a reason to omit a starter.
+
+Verified end to end against the live MLB Stats API for 2026-08-18: eligible
+12, skipped 0 already-started, skipped 3 missing a starter, 12 predicted and
+stored in Postgres with the correct champion model/version attached
+(`logistic_regression_baseline` / `m5-v1`). Re-running reported
+`0 inserted, 0 updated, 12 unchanged` — idempotent, as designed.
+
+**What's left for Done:** the exit criterion is the job running successfully
+*unattended* across a few consecutive real game days, landing predictions
+before first pitch without anyone watching it. That's now live —
+`docker compose up -d scheduler` is running — but it needs actual elapsed
+days to observe, not more code. Check back via
+`docker compose logs scheduler` and the `predictions` table before flipping
+this to Done.
 
 **Goal:** Predictions generate automatically every day with no manual
 steps, per requirements.md.
@@ -516,7 +580,7 @@ Not sequenced yet — pull from planning.md's Stretch Features list once MVP
 | M4 | Feature Engineering Pipeline | M3 | Done |
 | M5 | Baseline ML Model | M4 | Done |
 | M6 | Model Iteration & Selection | M5 | Done |
-| M7 | Prediction Service & Automation | M1, M6 | Not Started |
+| M7 | Prediction Service & Automation | M1, M6 | In Progress |
 | M8 | REST API | M7, M3 | Not Started |
 | M9 | Dashboard: Today's Games | M8 | Not Started |
 | M10 | Dashboard: Game Details | M9 | Not Started |

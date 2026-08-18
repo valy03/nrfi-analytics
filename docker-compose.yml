@@ -31,6 +31,25 @@ services:
       db:
         condition: service_healthy
 
+  scheduler:
+    build: ./backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://nrfi:nrfi@db:5432/nrfi_analytics
+      # Plain print() calls otherwise sit in a block buffer and never reach
+      # `docker compose logs` until it fills — which for a once-a-day loop
+      # could be days. Unbuffered is what makes this an actually observable
+      # unattended job instead of a silent one.
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+    command: python -m app.prediction.scheduler
+
   frontend:
     build: ./frontend
     restart: unless-stopped

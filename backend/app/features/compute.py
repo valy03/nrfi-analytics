@@ -125,14 +125,24 @@ def _as_of(
     other.
 
     Entities with no prior appearances come back as zeros, which the callers
-    turn into the league average via shrinkage.
+    turn into the league average via shrinkage. A missing entity key — an
+    unannounced starting pitcher, stored as NULL until MLB confirms one — is
+    treated exactly the same way: remapped to a sentinel that can't match any
+    real id, so it comes back with zero prior appearances (and the same
+    league-average fallback a debut pitcher gets) instead of crashing the
+    dtype cast merge_asof needs. Real MLB ids are always positive, so -1 never
+    collides with a legitimate pitcher, team, or park.
     """
     columns = value_cols + [_COUNT]
     left = keys.sort_values("game_date")
     # merge_asof refuses to join keys of differing dtype (int32 vs int64 is
     # enough), and `.dt.year` hands back int32 on some platforms.
     for col in entity_cols:
-        left[col] = left[col].astype(totals[col].dtype)
+        left[col] = (
+            pd.to_numeric(left[col], errors="coerce")
+            .fillna(-1)
+            .astype(totals[col].dtype)
+        )
     merged = pd.merge_asof(
         left,
         totals,

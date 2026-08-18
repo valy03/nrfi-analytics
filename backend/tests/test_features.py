@@ -309,6 +309,29 @@ def test_debut_pitcher_falls_back_to_the_league_average():
     assert not np.isnan(debut["away_sp_nrfi_rate"])
 
 
+def test_unannounced_starter_falls_back_to_the_league_average_instead_of_crashing():
+    """A NULL away_sp_id (MLB hasn't confirmed a starter yet) must be handled
+    the same way as a debut pitcher, not blow up the as-of join. This is the
+    normal state of tomorrow's slate — there are almost always a couple of
+    TBD starters — so build_full_matrix computing over the *whole* games
+    table (M7's features_for_games) must not choke on one being present
+    anywhere in it.
+    """
+    games, team_lines, pitcher_lines = _season(n_games=30)
+
+    tbd_date = games["game_date"].iloc[-1] + dt.timedelta(days=2)
+    row = _game(881_000, tbd_date.date(), nrfi=None)
+    row["away_sp_id"] = None
+    games = pd.concat([games, pd.DataFrame([row])], ignore_index=True)
+
+    features = compute_features(games, team_lines, pitcher_lines)
+    tbd = features.iloc[-1]
+
+    assert tbd["away_sp_starts_prior"] == 0
+    assert 0.4 < tbd["away_sp_nrfi_rate"] < 1.0
+    assert not features[cfg.FEATURE_COLUMNS].isna().any().any()
+
+
 def test_no_nans_anywhere_including_the_very_first_game():
     games, team_lines, pitcher_lines = _season(n_games=10)
     features = compute_features(games, team_lines, pitcher_lines)
