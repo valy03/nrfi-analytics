@@ -467,7 +467,100 @@ steps, per requirements.md.
 
 # M8 — REST API
 
-**Status:** Not Started
+**Status:** Done (2026-08-18) — eight endpoints across three routers
+(`app/routers/games.py`, `history.py`, `analytics.py`), all wired into
+`main.py` under `/api`, all verified against live production data (17,933+
+historical games, real predictions from a real MLB slate) — not just the
+offline test suite.
+
+**Scope decision going in:** M8's exit criteria calls for "every MVP
+dashboard feature... backed by real stored data (not mocks)," but three
+categories of requirements.md field have no data source at all — no prior
+milestone ever built them: weather (OpenWeather, decided in research.md but
+never collected), betting odds (The Odds API, same gap), and traditional
+pitcher/team stats (ERA, WHIP, FIP, xERA, OPS, OBP, SLG, batting average —
+M4 deliberately computed first-inning-only versions for the model and
+explicitly skipped these as display stats). Rather than block M8 on new
+external API integrations, or silently fabricate placeholder values, the
+decision (asked of and confirmed by the user) was: ship the core API now on
+real data, with those specific fields present in the response schemas and
+explicitly typed nullable, returning `null` today. The contract is ready;
+the data is a documented fast-follow, not invented.
+
+**Two gaps M8 surfaced that belonged to no prior milestone:**
+
+1. **Grading.** Nothing connected a stored prediction to the game's
+   now-known outcome — M7 predicts before the game, M1/M3's daily loader
+   labels the outcome after, and nothing joined the two. Added
+   `app/grading/results.py`: for every prediction whose game now has a
+   known result and no `PredictionResult` yet, write one (`actual_label`,
+   `correct`; `odds_american`/`stake`/`profit` stay null, no odds source).
+   Idempotent — already-graded predictions are skipped via the "no result
+   yet" check, so a daily re-run only picks up newly-finished games. This
+   is why `/api/history/accuracy` and `/api/analytics/models` can be
+   honest: they only count *graded* predictions, so an in-flight one isn't
+   silently scored as a win or a loss.
+
+2. **A real M4 bug.** Not new to M8, but this is where it was caught:
+   `compute_features` crashed (`IntCastingNaNError`) on a game with an
+   unannounced starting pitcher — the normal state of a few games on any
+   real slate, but untested because every M4 synthetic fixture always
+   supplied concrete pitcher ids. Fixed in `app/features/compute.py`
+   (`_as_of`: a missing entity key now maps to a sentinel no real id can
+   match, falling back to the league average exactly like a debut pitcher,
+   instead of crashing the dtype cast). Regression test in
+   `test_features.py`. Recorded here rather than reopening M4/M7's status.
+
+**What each router serves:**
+
+- **`games.py`** — `GET /api/games` (today's slate by default, or `?date=`;
+  filters `prediction=NRFI|YRFI`, `min_confidence`, `team` substring
+  search; `sort_by=confidence`) and `GET /api/games/{game_pk}` (full
+  detail: teams, pitchers, team stats, prediction, explanation, actual
+  result once played). Pitcher/team rate stats and the explanation are
+  sourced from the *stored prediction's feature snapshot*
+  (`Prediction.features`), not recomputed live — a game's displayed
+  numbers are exactly what the model saw, and a game with no prediction
+  (no announced starters, or predates M7) honestly shows no rate stats
+  rather than a live recomputation that could drift from what was
+  predicted. "Last 5 starts" is real per-start data queried from
+  `pitcher_game_stats`, not an aggregate.
+- **`history.py`** — `GET /api/history/predictions` (past predictions with
+  graded outcome where available, filterable by date range/team/model
+  version, paginated) and `GET /api/history/accuracy` (overall/yearly/
+  monthly accuracy — `win_rate` is the same number as `accuracy` for a
+  binary market bet straight every time, exposed under both names because
+  requirements.md lists them separately; `roi` stays null, no odds).
+- **`analytics.py`** — `GET /api/analytics/nrfi-frequency` (by season, from
+  the full 2018-2026 history — dense from day one, unlike accuracy which
+  only fills in as M7 keeps running), `/pitchers` and `/teams`
+  leaderboards (first-inning NRFI rate, with a minimum-appearances floor
+  so one clean start can't outrank a real season), and `/models`
+  (graded accuracy per model_name/model_version — the concrete payoff of
+  M6's multi-version design).
+
+**Explanation generation** (`app/queries/explain.py`) compares each side
+head-to-head (home starter's NRFI rate vs. away's, home offense's
+first-inning rate vs. away's, this park's rate vs. a plainly-labeled 50%
+coin flip) rather than against a hardcoded "league average": every feature
+is already shrunk toward whatever the *as-of* league rate was on the day of
+that specific game (M4), so there's no single constant to compare against
+without re-guessing a number M4 went to real effort to stop guessing. The
+top 3 factors by magnitude of divergence get rendered as plain sentences.
+Not SHAP — that's still a stretch goal.
+
+**Known gap, not yet worth solving:** `predictions` currently only has rows
+for the one real slate M7 has predicted so far — there's no history to
+show on `/api/history/*` or `/api/analytics/models` until M7 (or manual
+runs) accumulate more real days. Backfilling predictions retroactively over
+the 2018-2025 training-era games was considered and rejected for now: the
+champion model was trained on exactly that data, so "predicting" it after
+the fact would be look-ahead bias dressed up as a track record, not a
+real one.
+
+61 new offline tests (synthetic data + in-memory SQLite via a new `client`
+TestClient fixture in `conftest.py`), 175 total. Verified live against
+Postgres: all 8 endpoints, `/docs` Swagger UI, and the full OpenAPI spec.
 
 **Goal:** Backend endpoints exist to serve everything the dashboard needs.
 
@@ -597,7 +690,7 @@ Not sequenced yet — pull from planning.md's Stretch Features list once MVP
 | M5 | Baseline ML Model | M4 | Done |
 | M6 | Model Iteration & Selection | M5 | Done |
 | M7 | Prediction Service & Automation | M1, M6 | In Progress |
-| M8 | REST API | M7, M3 | Not Started |
+| M8 | REST API | M7, M3 | Done |
 | M9 | Dashboard: Today's Games | M8 | Not Started |
 | M10 | Dashboard: Game Details | M9 | Not Started |
 | M11 | Historical Results & Analytics | M7, M8 | Not Started |

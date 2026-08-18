@@ -12,20 +12,20 @@ running what exists right now.
 
 ## Status
 
-**M7 — Prediction Service & Daily Automation (in progress).** On top of the
-M0 scaffolding, the backend can pull the daily MLB schedule and probable
-starting pitchers (M1), backfill historical Statcast pitch data into a
-per-game NRFI-labeled dataset (M2), load both into PostgreSQL behind
-Alembic migrations (M3), turn the stored data into a leakage-free
-32-feature matrix over 17,933 games (M4), train a season-split Logistic
-Regression baseline (M5), head-to-head it against an XGBoost candidate that
-loses on held-out AUC so the simpler model stays champion (M6), and
-generate + store real predictions for the champion model on demand, with an
-optional scheduler that automates the timing (M7). M7 is code-complete and
-verified against live data; predictions are kept current with manual job
-runs for now, with unattended scheduling verification deferred to M12's
-real deployment rather than a laptop that has to stay awake for days — see
-`docs/milestones.md`.
+**M8 — REST API (done).** On top of the M0 scaffolding, the backend can pull
+the daily MLB schedule and probable starting pitchers (M1), backfill
+historical Statcast pitch data into a per-game NRFI-labeled dataset (M2),
+load both into PostgreSQL behind Alembic migrations (M3), turn the stored
+data into a leakage-free 32-feature matrix over 17,933 games (M4), train a
+season-split Logistic Regression baseline (M5), head-to-head it against an
+XGBoost candidate that loses on held-out AUC so the simpler model stays
+champion (M6), generate + store real predictions for the champion model on
+demand, with an optional scheduler that automates the timing (M7), and
+serve all of it — today's games, game detail with a rule-based explanation,
+historical accuracy, and analytics leaderboards — over a REST API verified
+against live Postgres data (M8). M7's own exit criterion (observed running
+*unattended* across real game days) is still deferred to M12's real
+deployment — see `docs/milestones.md`.
 
 ---
 
@@ -258,6 +258,33 @@ the real bug this surfaced in the M4 feature pipeline (unannounced starters
 crashed it), and the decision to defer unattended verification to M12 —
 lives in `docs/milestones.md` under M7.
 
+## REST API (M8)
+
+With the backend running (`docker compose up -d`), the full API is live at
+`http://localhost:8000` — interactive docs at `/docs`.
+
+```bash
+curl "http://localhost:8000/api/games?sort_by=confidence"     # today's slate
+curl "http://localhost:8000/api/games/824803"                 # one game, full detail
+curl "http://localhost:8000/api/history/accuracy"              # overall/yearly/monthly
+curl "http://localhost:8000/api/analytics/pitchers?min_starts=50"
+```
+
+Once a game's outcome is known, grade the predictions made for it (nothing
+else does this automatically yet — see docs/milestones.md M8):
+
+```bash
+docker compose exec backend python -m app.grading.results
+```
+
+Weather, betting odds, and traditional pitcher/team stats (ERA, WHIP, FIP,
+xERA, OPS, OBP, SLG, batting average) appear in the response schemas as
+explicitly nullable fields returning `null` — no data source for any of
+them exists yet (a scope decision, not an oversight; see `docs/milestones.md`
+under M8). Everything else — teams, pitchers, first-inning rate stats, the
+prediction, its rule-based explanation, and graded history — is real,
+live-verified data.
+
 ### Tests
 
 ```bash
@@ -283,7 +310,10 @@ nrfi-analytics/
 │       ├── features/   As-of feature pipeline + shrinkage estimator (M4)
 │       ├── training/   Split, baseline (M5), XGBoost + comparison/selection (M6)
 │       ├── prediction/ Inference, storage, daily job + scheduler (M7)
-│       └── routers/    Empty for now — populated starting M8
+│       ├── grading/    Prediction vs. actual-outcome grading (M8)
+│       ├── schemas/    Pydantic response models (M8)
+│       ├── queries/    Read-only DB queries + explanation generator (M8)
+│       └── routers/    games, history, analytics endpoints (M8)
 ├── frontend/           React + TypeScript + Tailwind (Vite)
 │   └── src/
 │       ├── App.tsx     Placeholder page — becomes M9 dashboard

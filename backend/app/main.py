@@ -1,14 +1,10 @@
-"""NRFI Analytics API entrypoint.
-
-M0 scope: just enough to prove the backend boots, talks to config,
-and responds to a health check. Real routers (games, predictions,
-history, analytics) get added starting at M8 per milestones.md.
-"""
+"""NRFI Analytics API entrypoint."""
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
+from app.routers import analytics, games, history
 
 settings = get_settings()
 
@@ -25,6 +21,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(games.router, prefix="/api")
+app.include_router(history.router, prefix="/api")
+app.include_router(analytics.router, prefix="/api")
 
 
 @app.get("/health")

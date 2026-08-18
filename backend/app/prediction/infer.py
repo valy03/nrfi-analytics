@@ -22,6 +22,22 @@ class ChampionNotFoundError(RuntimeError):
     """Raised when M6 hasn't produced a champion artifact yet."""
 
 
+def champion_identity() -> tuple[str, str]:
+    """(model_name, model_version) of the current champion, metadata only.
+
+    Split out from ``load_champion`` for M8's API layer: knowing *which*
+    model_version is authoritative right now (to pick out its predictions)
+    doesn't need the joblib artifact loaded into memory on every request.
+    """
+    if not tcfg.CHAMPION_METRICS_PATH.exists():
+        raise ChampionNotFoundError(
+            f"No champion metadata at {tcfg.CHAMPION_METRICS_PATH}. Run "
+            "`python -m app.training.compare` first."
+        )
+    metadata = json.loads(tcfg.CHAMPION_METRICS_PATH.read_text())
+    return metadata["model_name"], metadata["model_version"]
+
+
 def load_champion() -> tuple[object, str, str]:
     if not tcfg.CHAMPION_PATH.exists():
         raise ChampionNotFoundError(
@@ -29,8 +45,8 @@ def load_champion() -> tuple[object, str, str]:
             "`python -m app.training.compare` first."
         )
     model = joblib.load(tcfg.CHAMPION_PATH)
-    metadata = json.loads(tcfg.CHAMPION_METRICS_PATH.read_text())
-    return model, metadata["model_name"], metadata["model_version"]
+    model_name, model_version = champion_identity()
+    return model, model_name, model_version
 
 
 def predict(matrix: pd.DataFrame) -> list[dict]:
