@@ -12,17 +12,14 @@ import pandas as pd
 import pytest
 
 from app.features import config as fcfg
-from app.training.baseline import (
-    beats_references,
-    build_report,
-    passed,
-    train_baseline,
-)
+from app.training import config as cfg
+from app.training.baseline import train_baseline
 from app.training.evaluate import (
     compute_metrics,
     league_average_reference,
     majority_class_reference,
 )
+from app.training.report import beats_references, build_report, passed
 from app.training.split import time_based_split
 
 
@@ -155,7 +152,7 @@ def test_baseline_beats_naive_references_on_separable_data():
     train, test = time_based_split(matrix, cutoff_season=2024)
 
     model = train_baseline(train)
-    report = build_report(model, train, test)
+    report = build_report(model, cfg.MODEL_NAME, cfg.MODEL_VERSION, train, test)
     criteria = beats_references(report)
 
     assert criteria["beats_majority_accuracy"]
@@ -189,7 +186,7 @@ def test_report_records_seasons_on_each_side_of_the_split():
     train, test = time_based_split(matrix, cutoff_season=2024)
 
     model = train_baseline(train)
-    report = build_report(model, train, test)
+    report = build_report(model, cfg.MODEL_NAME, cfg.MODEL_VERSION, train, test)
 
     assert report["train"]["seasons"] == [2018, 2019, 2020, 2021]
     assert report["test"]["seasons"] == [2024, 2025]

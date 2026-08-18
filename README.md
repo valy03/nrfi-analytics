@@ -12,15 +12,15 @@ running what exists right now.
 
 ## Status
 
-**M5 — Baseline ML Model (done).** On top of the M0 scaffolding, the backend
-can pull the daily MLB schedule and probable starting pitchers (M1), backfill
-historical Statcast pitch data into a per-game NRFI-labeled dataset (M2),
-load both into PostgreSQL behind Alembic migrations (M3), turn the stored
-data into a leakage-free 32-feature matrix over 17,933 games (M4), and train
-a season-split Logistic Regression baseline that beats a majority-class and
-a league-average reference on held-out 2024-2026 games (M5). Next up is M6,
-model iteration and selection. See `docs/milestones.md` for the full
-roadmap.
+**M6 — Model Iteration & Selection (done).** On top of the M0 scaffolding,
+the backend can pull the daily MLB schedule and probable starting pitchers
+(M1), backfill historical Statcast pitch data into a per-game NRFI-labeled
+dataset (M2), load both into PostgreSQL behind Alembic migrations (M3), turn
+the stored data into a leakage-free 32-feature matrix over 17,933 games (M4),
+train a season-split Logistic Regression baseline (M5), and head-to-head it
+against an XGBoost candidate — which loses on held-out AUC, so the simpler
+model stays the champion (M6). Next up is M7, the daily prediction service.
+See `docs/milestones.md` for the full roadmap.
 
 ---
 
@@ -194,6 +194,28 @@ training NRFI rate. Saves the fitted model and a metrics report to
 Full numbers and the reasoning behind the season-based split live in
 `docs/milestones.md` under M5.
 
+## Model iteration & selection (M6)
+
+```bash
+docker compose exec backend python -m app.training.compare
+```
+
+Trains an XGBoost candidate on the same split and features as M5, scores it
+against the Logistic Regression baseline on the identical held-out set, and
+picks a champion by ROC AUC among whichever candidate(s) clear the M5 gating
+bar — with a written, metric-backed reason, not "XGBoost is fancier."
+Individual runs are also available:
+
+```bash
+docker compose exec backend python -m app.training.xgboost_model   # XGBoost candidate alone
+```
+
+Saves the winning model to `data/models/champion.joblib` — the one artifact
+M7 will load for daily inference, under a model-agnostic name so the
+inference path doesn't need to know which family is in production. Full
+numbers, feature importances, and the selection reasoning live in
+`docs/milestones.md` under M6.
+
 ### Tests
 
 ```bash
@@ -217,7 +239,7 @@ nrfi-analytics/
 │       ├── models/     ORM tables (M3)
 │       ├── ingestion/  Loaders: teams, historical, daily (M3), game_stats (M4)
 │       ├── features/   As-of feature pipeline + shrinkage estimator (M4)
-│       ├── training/   Time-based split, baseline model + evaluation (M5)
+│       ├── training/   Split, baseline (M5), XGBoost + comparison/selection (M6)
 │       └── routers/    Empty for now — populated starting M8
 ├── frontend/           React + TypeScript + Tailwind (Vite)
 │   └── src/

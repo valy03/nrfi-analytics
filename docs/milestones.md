@@ -291,7 +291,54 @@ evaluated.
 
 # M6 — Model Iteration & Selection
 
-**Status:** Not Started
+**Status:** Done (2026-08-17) — `app.training.compare` trains an XGBoost
+candidate alongside the M5 Logistic Regression on the identical season split
+(2018-2023 train, 2024-2026 test), scores both through the same
+`app.training.report` path, and picks a champion. Run it with
+`python -m app.training.compare`.
+
+|  | Accuracy | ROC AUC | Log loss |
+|---|---|---|---|
+| Logistic Regression (M5) | 0.519 | **0.515** | 0.6948 |
+| XGBoost (M6 candidate) | 0.505 | 0.506 | 0.6932 |
+
+**XGBoost loses, and stays unselected.** Its AUC (0.506) is actually *below*
+the Logistic Regression baseline's (0.515) on the held-out set, even though
+it edges ahead on log loss. That's the expected result for this feature set,
+not a bug: M4 already established that first-inning talent has a standard
+deviation of just 0.034 against a 0.712 mean, so almost all of the spread
+between pitchers is noise, not skill. Gradient-boosted trees earn their
+keep by capturing nonlinear interactions real structure creates — with a
+target this close to a coin flip, the extra flexibility mostly fits noise in
+the training seasons instead, which is exactly what shows up as the AUC
+inversion between train-side flexibility and test-side generalization. XGBoost's
+own feature-importance ranking (`home_sp_k_rate_1st`, `away_sp_runs_1st_avg`,
+`away_sp_k_rate_1st`) largely echoes the Logistic Regression's, so the two
+models agree on *which* stats matter — pitcher first-inning rate stats
+dominate both — they just disagree on how to combine them, and the simpler
+combination generalizes better here.
+
+Both candidates individually clear the M5 gating bar (beat the majority-class
+reference on accuracy, rank better than chance on AUC); `select_champion`
+picks by held-out ROC AUC among whichever candidates pass that gate, so a
+higher-AUC model that *failed* the gate would still lose to a passing one —
+exercised directly in `tests/test_compare.py`. The Logistic Regression wins
+on both counts, so it remains the champion.
+
+Champion selection is a generic, model-agnostic function (`build_candidates`
+returns a list, not a hardcoded pair), so a future LightGBM or Random Forest
+candidate slots in the same way — deliberately not built now since the
+result above suggests more model complexity isn't this dataset's bottleneck;
+better features (bullpen, weather, park-specific effects — flagged as future
+work in M4) are a more promising lever than a fancier estimator.
+
+Artifacts land in `data/models/` (gitignored): `champion.joblib` /
+`champion_metrics.json` are what M7 will load for inference — model-name-
+agnostic, so the inference path doesn't need to know which family won.
+`m6-xgb-v1.joblib` / `m6-xgb-v1_metrics.json` are the standalone XGBoost
+run, and `m6_comparison.json` holds the full head-to-head with both models'
+feature importances. 9 new offline tests (synthetic data, no database), 95
+total.
 
 **Goal:** A stronger model is chosen deliberately, not just swapped in.
 
@@ -468,7 +515,7 @@ Not sequenced yet — pull from planning.md's Stretch Features list once MVP
 | M3 | Database Schema & Ingestion | M1, M2 | Done |
 | M4 | Feature Engineering Pipeline | M3 | Done |
 | M5 | Baseline ML Model | M4 | Done |
-| M6 | Model Iteration & Selection | M5 | Not Started |
+| M6 | Model Iteration & Selection | M5 | Done |
 | M7 | Prediction Service & Automation | M1, M6 | Not Started |
 | M8 | REST API | M7, M3 | Not Started |
 | M9 | Dashboard: Today's Games | M8 | Not Started |
