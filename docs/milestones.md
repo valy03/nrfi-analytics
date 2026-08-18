@@ -581,6 +581,54 @@ Postgres: all 8 endpoints, `/docs` Swagger UI, and the full OpenAPI spec.
 
 ---
 
+# M8.5 — Weather & Odds Collection
+
+**Status:** Not Started
+
+**Goal:** The two data sources `research.md` decided on but no milestone
+ever actually collected — weather (OpenWeather) and betting odds (The Odds
+API) — land in Postgres, so M8's `weather`/`odds` response fields stop
+being permanently `null`.
+
+Inserted here rather than folded into M9/M10: both are Collection-layer
+concerns in `planning.md`'s own architecture (Data Sources → Collection →
+DB → Features → Model → Service → API → UI) — the same category as M1
+(schedule) and M2 (Statcast), not dashboard work. Building them inside a
+milestone titled "Dashboard" would mix an external-API-client-and-migration
+task into what should be frontend work. No renumbering of M9-M12 needed;
+this just reads between M8 and M9.
+
+**Deliverables:**
+- A venue → lat/lon lookup for the 30 parks (MLB Stats API's venue data, or
+  a static table if that's thin) — OpenWeather needs coordinates, not city
+  names, to be accurate
+- `app/collection/weather.py`: OpenWeather free-tier client, current
+  conditions near first pitch for a given venue/time
+- `app/collection/odds.py`: The Odds API free-tier client, MLB moneyline
+  only, matched to today's games by team + date. Display-only per
+  `research.md` — not a model input, so no feature-pipeline or training
+  changes
+- Schema: nullable `weather`/`odds` columns or a small side table (open
+  question — a table if either source might carry multiple readings per
+  game, e.g. odds line movement; a column if it's always "latest snapshot
+  only," which matches `research.md`'s "display-only" decision)
+- Wire both into the M7 job (or a step alongside it) so they're captured
+  once per day, same cadence as predictions
+- M8's `games_for_date` / `game_detail` queries populate the `weather`/
+  `odds` response fields instead of hardcoding `None`
+
+**Exit Criteria:**
+- A real game's `/api/games/{game_pk}` response shows real weather and
+  real odds, sourced from live API calls, not fixtures
+- Free-tier rate limits are respected — The Odds API in particular (25
+  req/day) needs the whole day's slate covered by very few calls, not one
+  call per game
+
+**Depends on:** M7 (shares its daily cadence), M8 (defines the response
+shape these fields fill in)
+
+---
+
 # M9 — Dashboard: Today's Games
 
 **Status:** Not Started
@@ -691,6 +739,7 @@ Not sequenced yet — pull from planning.md's Stretch Features list once MVP
 | M6 | Model Iteration & Selection | M5 | Done |
 | M7 | Prediction Service & Automation | M1, M6 | In Progress |
 | M8 | REST API | M7, M3 | Done |
+| M8.5 | Weather & Odds Collection | M7, M8 | Not Started |
 | M9 | Dashboard: Today's Games | M8 | Not Started |
 | M10 | Dashboard: Game Details | M9 | Not Started |
 | M11 | Historical Results & Analytics | M7, M8 | Not Started |
