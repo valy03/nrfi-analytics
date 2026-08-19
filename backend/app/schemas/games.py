@@ -1,17 +1,18 @@
-"""Response schemas for the games endpoints (M8).
+"""Response schemas for the games endpoints (M8, M8.5).
 
-A few fields are typed but always ``None`` today: ``weather``, ``odds``, and
-the traditional pitcher/team stats (``era``, ``whip``, ``fip``, ``xera``,
-``ops``, ``obp``, ``slg``, ``batting_avg``). None of those have a real data
-source wired up yet — see docs/milestones.md M8. They're present in the
-contract now, filled in by a dedicated follow-up, rather than added later as
-a breaking schema change. Every other field here is real, stored data.
+Traditional pitcher/team stats (``era``, ``whip``, ``fip``, ``xera``,
+``ops``, ``obp``, ``slg``, ``batting_avg``) are still typed but always
+``None`` — no data source for those exists yet (docs/milestones.md M8).
+``weather`` and ``odds`` *are* real now (M8.5): populated from
+``app.prediction.enrich``'s captures whenever a game has them, and still
+``None`` for a game that hasn't been enriched yet (no venue match, no
+posted line, or simply not captured yet) — same "present in the contract,
+honestly empty until there's real data" approach M8 established.
 """
 
 from __future__ import annotations
 
 import datetime as dt
-from typing import Any
 
 from pydantic import BaseModel
 
@@ -20,6 +21,21 @@ class TeamOut(BaseModel):
     id: int
     name: str
     abbreviation: str
+
+
+class WeatherOut(BaseModel):
+    temp_f: float
+    conditions: str
+    wind_mph: float
+    wind_direction_deg: int | None = None
+    captured_at: dt.datetime
+
+
+class OddsOut(BaseModel):
+    home_moneyline: int
+    away_moneyline: int
+    bookmaker: str
+    captured_at: dt.datetime
 
 
 class PitcherRecentStart(BaseModel):
@@ -111,7 +127,7 @@ class GameSummary(BaseModel):
     home_pitcher: PitcherOut | None
     away_pitcher: PitcherOut | None
     prediction: PredictionOut | None
-    weather: dict[str, Any] | None = None
+    weather: WeatherOut | None = None
 
 
 class GameDetail(BaseModel):
@@ -131,5 +147,5 @@ class GameDetail(BaseModel):
     prediction: PredictionOut | None
     explanation: list[str] = []
     actual_result: ActualResultOut | None = None
-    weather: dict[str, Any] | None = None
-    odds: dict[str, Any] | None = None
+    weather: WeatherOut | None = None
+    odds: OddsOut | None = None

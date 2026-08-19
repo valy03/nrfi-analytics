@@ -32,6 +32,7 @@ from app.db.session import session_scope
 from app.features.pipeline import FeaturePipelineError, features_for_games
 from app.ingestion.daily import DailyIngestionError, load_date
 from app.models import Game
+from app.prediction import enrich
 from app.prediction.infer import ChampionNotFoundError, predict
 from app.prediction.store import save_predictions
 
@@ -91,8 +92,15 @@ def run(session: Session, date: dt.date | None = None) -> dict:
     rows = predict(matrix)
     counts = save_predictions(session, rows)
 
+    # M8.5: display-only, best-effort — a weather/odds failure never blocks
+    # or fails the job predictions actually depend on.
+    weather_counts = enrich.enrich_weather(session, game_pks)
+    odds_counts = enrich.enrich_odds(session, game_pks)
+
     result["predicted"] = len(rows)
     result["upsert"] = str(counts)
+    result["weather"] = str(weather_counts)
+    result["odds"] = str(odds_counts)
     return result
 
 
@@ -128,6 +136,8 @@ def main(argv: list[str] | None = None) -> int:
         f"{result['skipped_no_starters']} missing an announced starter\n"
         f"  Predicted: {result['predicted']}"
         + (f"\n  {result['upsert']}" if "upsert" in result else "")
+        + (f"\n  Weather:   {result['weather']}" if "weather" in result else "")
+        + (f"\n  Odds:      {result['odds']}" if "odds" in result else "")
     )
     return 0
 

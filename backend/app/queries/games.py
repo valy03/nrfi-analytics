@@ -28,11 +28,13 @@ from app.schemas.games import (
     ActualResultOut,
     GameDetail,
     GameSummary,
+    OddsOut,
     PitcherOut,
     PitcherRecentStart,
     PredictionOut,
     TeamOut,
     TeamStatsOut,
+    WeatherOut,
 )
 
 RECENT_STARTS_LIMIT = 5
@@ -53,6 +55,33 @@ def _prediction_out(prediction: Prediction | None) -> PredictionOut | None:
         model_name=prediction.model_name,
         model_version=prediction.model_version,
         predicted_at=prediction.predicted_at,
+    )
+
+
+def _weather_out(game: Game) -> WeatherOut | None:
+    """M8.5: only present once app.prediction.enrich has actually captured
+    a reading for this game — a missing venue match or a not-yet-run
+    enrichment step both mean "no weather", not an error.
+    """
+    if game.weather_temp_f is None or game.weather_captured_at is None:
+        return None
+    return WeatherOut(
+        temp_f=game.weather_temp_f,
+        conditions=game.weather_conditions,
+        wind_mph=game.weather_wind_mph,
+        wind_direction_deg=game.weather_wind_direction_deg,
+        captured_at=game.weather_captured_at,
+    )
+
+
+def _odds_out(game: Game) -> OddsOut | None:
+    if game.home_moneyline is None or game.away_moneyline is None:
+        return None
+    return OddsOut(
+        home_moneyline=game.home_moneyline,
+        away_moneyline=game.away_moneyline,
+        bookmaker=game.odds_bookmaker,
+        captured_at=game.odds_captured_at,
     )
 
 
@@ -200,6 +229,7 @@ def games_for_date(
                     pitchers.get(game.away_probable_pitcher_id), "away", features
                 ),
                 prediction=_prediction_out(pred),
+                weather=_weather_out(game),
             )
         )
 
@@ -321,4 +351,6 @@ def game_detail(session: Session, game_pk: int) -> GameDetail | None:
         prediction=_prediction_out(prediction),
         explanation=generate_explanation(prediction) if prediction else [],
         actual_result=_actual_result_out(game),
+        weather=_weather_out(game),
+        odds=_odds_out(game),
     )

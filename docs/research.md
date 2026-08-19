@@ -159,13 +159,17 @@ for MVP. May revisit for advanced metrics (wRC+, park-adjusted stats) later.
 
 **The Odds API (free tier)**
 
-- Free tier: 25 requests/day, NBA + MLB only, moneyline (h2h) markets only.
-  No historical odds on the free tier.
+- Free tier: NBA + MLB only, moneyline (h2h) markets only, no historical
+  odds. (Originally noted here as 25 requests/day — M8.5 signed up for a
+  real key and the actual quota is 500 requests, confirmed via the
+  `x-requests-remaining` response header. Doesn't change the decision
+  below either way.)
 - **Decision:** odds will be **display-only context** on the game details
   page, not a model input. This avoids depending on a rate-limited free
   tier for anything the ML pipeline needs to function, and avoids paying
   for historical odds data we don't strictly need for MVP.
-- One daily pull of today's moneylines is well within the 25/day limit.
+- One daily pull of today's moneylines — the whole slate in a single
+  request (`app.collection.odds`) — is well within the quota regardless.
 - Revisit as a paid/model-input feature only if odds prove meaningfully
   predictive and the project justifies the cost (Version 3+ territory).
 

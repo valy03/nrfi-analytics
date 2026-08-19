@@ -280,3 +280,34 @@ def test_run_wires_features_through_predict_and_store(session, monkeypatch):
     assert result["predicted"] == 2
     assert saved["rows"] == fake_rows
     assert "2 inserted" in result["upsert"]
+
+
+def test_run_enriches_weather_and_odds_for_the_eligible_games(session, monkeypatch):
+    """M8.5: the job calls both enrichment steps with the same game_pks it
+    just predicted, and their results land in the returned report.
+    """
+    monkeypatch.setattr(job, "load_date", lambda *a, **kw: None)
+    monkeypatch.setattr(job, "eligible_games", lambda *a, **kw: ([111, 222], 0, 0))
+    monkeypatch.setattr(job, "features_for_games", lambda s, pks: pd.DataFrame({"game_pk": pks}))
+    monkeypatch.setattr(job, "predict", lambda matrix: [])
+    monkeypatch.setattr(job, "save_predictions", lambda s, rows: UpsertCounts())
+
+    weather_calls = []
+    odds_calls = []
+    monkeypatch.setattr(
+        job.enrich,
+        "enrich_weather",
+        lambda s, pks: weather_calls.append(pks) or UpsertCounts(updated=1),
+    )
+    monkeypatch.setattr(
+        job.enrich,
+        "enrich_odds",
+        lambda s, pks: odds_calls.append(pks) or UpsertCounts(updated=2),
+    )
+
+    result = job.run(session, dt.date(2026, 8, 17))
+
+    assert weather_calls == [[111, 222]]
+    assert odds_calls == [[111, 222]]
+    assert "1 updated" in result["weather"]
+    assert "2 updated" in result["odds"]

@@ -317,6 +317,70 @@ def test_game_detail_recent_starts_only_include_strictly_earlier_games(session, 
     assert start.nrfi is True
 
 
+# --- weather / odds (M8.5) --------------------------------------------
+
+
+def test_game_detail_weather_is_none_until_captured(session, champion):
+    _teams_and_pitchers(session)
+    game = _game(session)
+    session.add(_prediction(game.game_pk))
+    session.flush()
+
+    detail = games_queries.game_detail(session, game.game_pk)
+
+    assert detail.weather is None
+    assert detail.odds is None
+
+
+def test_game_detail_includes_captured_weather_and_odds(session, champion):
+    _teams_and_pitchers(session)
+    captured = dt.datetime(2026, 8, 18, 12, 0, tzinfo=dt.timezone.utc)
+    game = _game(
+        session,
+        weather_temp_f=68.5,
+        weather_conditions="Clear",
+        weather_wind_mph=6.0,
+        weather_wind_direction_deg=210,
+        weather_captured_at=captured,
+        home_moneyline=-150,
+        away_moneyline=130,
+        odds_bookmaker="DraftKings",
+        odds_captured_at=captured,
+    )
+    session.add(_prediction(game.game_pk))
+    session.flush()
+
+    detail = games_queries.game_detail(session, game.game_pk)
+
+    assert detail.weather.temp_f == pytest.approx(68.5)
+    assert detail.weather.conditions == "Clear"
+    assert detail.weather.wind_direction_deg == 210
+    assert detail.odds.home_moneyline == -150
+    assert detail.odds.away_moneyline == 130
+    assert detail.odds.bookmaker == "DraftKings"
+
+
+def test_games_for_date_summary_includes_weather_but_not_odds_field(session, champion):
+    """Dashboard rows show a weather summary (requirements.md); odds are a
+    game-detail-only field.
+    """
+    _teams_and_pitchers(session)
+    game = _game(
+        session,
+        weather_temp_f=72.0,
+        weather_conditions="Sunny",
+        weather_wind_mph=4.0,
+        weather_captured_at=dt.datetime(2026, 8, 18, 12, 0, tzinfo=dt.timezone.utc),
+    )
+    session.add(_prediction(game.game_pk))
+    session.flush()
+
+    rows = games_queries.games_for_date(session, GAME_DATE)
+
+    assert rows[0].weather.temp_f == pytest.approx(72.0)
+    assert not hasattr(rows[0], "odds")
+
+
 def test_game_detail_recent_starts_caps_at_five(session, champion):
     _teams_and_pitchers(session)
     game = _game(session, game_pk=1000)

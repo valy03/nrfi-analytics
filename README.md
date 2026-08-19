@@ -12,20 +12,22 @@ running what exists right now.
 
 ## Status
 
-**M8 — REST API (done).** On top of the M0 scaffolding, the backend can pull
-the daily MLB schedule and probable starting pitchers (M1), backfill
-historical Statcast pitch data into a per-game NRFI-labeled dataset (M2),
-load both into PostgreSQL behind Alembic migrations (M3), turn the stored
-data into a leakage-free 32-feature matrix over 17,933 games (M4), train a
-season-split Logistic Regression baseline (M5), head-to-head it against an
-XGBoost candidate that loses on held-out AUC so the simpler model stays
-champion (M6), generate + store real predictions for the champion model on
-demand, with an optional scheduler that automates the timing (M7), and
-serve all of it — today's games, game detail with a rule-based explanation,
-historical accuracy, and analytics leaderboards — over a REST API verified
-against live Postgres data (M8). M7's own exit criterion (observed running
-*unattended* across real game days) is still deferred to M12's real
-deployment — see `docs/milestones.md`.
+**M8.5 — Weather & Odds Collection (done).** On top of the M0 scaffolding,
+the backend can pull the daily MLB schedule and probable starting pitchers
+(M1), backfill historical Statcast pitch data into a per-game NRFI-labeled
+dataset (M2), load both into PostgreSQL behind Alembic migrations (M3), turn
+the stored data into a leakage-free 32-feature matrix over 17,933 games
+(M4), train a season-split Logistic Regression baseline (M5), head-to-head
+it against an XGBoost candidate that loses on held-out AUC so the simpler
+model stays champion (M6), generate + store real predictions for the
+champion model on demand, with an optional scheduler that automates the
+timing (M7), serve all of it — today's games, game detail with a rule-based
+explanation, historical accuracy, and analytics leaderboards — over a REST
+API verified against live Postgres data (M8), and fill in that API's
+weather/odds fields with real live-captured data instead of permanent
+`null`s (M8.5). M7's own exit criterion (observed running *unattended*
+across real game days) is still deferred to M12's real deployment — see
+`docs/milestones.md`.
 
 ---
 
@@ -277,13 +279,33 @@ else does this automatically yet — see docs/milestones.md M8):
 docker compose exec backend python -m app.grading.results
 ```
 
-Weather, betting odds, and traditional pitcher/team stats (ERA, WHIP, FIP,
-xERA, OPS, OBP, SLG, batting average) appear in the response schemas as
-explicitly nullable fields returning `null` — no data source for any of
-them exists yet (a scope decision, not an oversight; see `docs/milestones.md`
-under M8). Everything else — teams, pitchers, first-inning rate stats, the
-prediction, its rule-based explanation, and graded history — is real,
-live-verified data.
+Traditional pitcher/team stats (ERA, WHIP, FIP, xERA, OPS, OBP, SLG, batting
+average) still appear in the response schemas as explicitly nullable fields
+returning `null` — no data source for those exists yet (a scope decision,
+not an oversight; see `docs/milestones.md` under M8). Everything else —
+teams, pitchers, first-inning rate stats, the prediction, its rule-based
+explanation, graded history, weather, and odds — is real, live-verified
+data.
+
+## Weather & odds collection (M8.5)
+
+Requires `OPENWEATHER_API_KEY` and `ODDS_API_KEY` in `.env` (both free
+tier — see `.env.example`). Seed the venue reference table once (coordinates
+come straight from the MLB Stats API, not a hand-typed list):
+
+```bash
+docker compose exec backend python -m app.ingestion.venues
+```
+
+Both sources are then captured automatically as part of the M7 job
+(`python -m app.prediction.job`), right after predictions save — one
+OpenWeather forecast fetch per unique venue on the slate, one Odds API call
+covering the whole day. Both are best-effort: an API failure or an unmatched
+game is skipped and logged in the job's output, never fails the run.
+
+```bash
+curl "http://localhost:8000/api/games/824803" | python -m json.tool  # weather + odds on a real game
+```
 
 ### Tests
 
@@ -303,13 +325,13 @@ nrfi-analytics/
 │   └── app/
 │       ├── main.py     Entrypoint, health check
 │       ├── config.py   Settings (env-driven)
-│       ├── collection/ mlb_stats.py (M1), statcast_backfill.py (M2), statcast_boxscore.py (M4)
+│       ├── collection/ mlb_stats.py (M1), statcast_backfill.py (M2), statcast_boxscore.py (M4), weather.py + odds.py (M8.5)
 │       ├── db/         Engine, session, declarative base (M3)
-│       ├── models/     ORM tables (M3)
-│       ├── ingestion/  Loaders: teams, historical, daily (M3), game_stats (M4)
+│       ├── models/     ORM tables (M3), venue.py (M8.5)
+│       ├── ingestion/  Loaders: teams, historical, daily (M3), game_stats (M4), venues (M8.5)
 │       ├── features/   As-of feature pipeline + shrinkage estimator (M4)
 │       ├── training/   Split, baseline (M5), XGBoost + comparison/selection (M6)
-│       ├── prediction/ Inference, storage, daily job + scheduler (M7)
+│       ├── prediction/ Inference, storage, daily job + scheduler (M7), weather/odds enrichment (M8.5)
 │       ├── grading/    Prediction vs. actual-outcome grading (M8)
 │       ├── schemas/    Pydantic response models (M8)
 │       ├── queries/    Read-only DB queries + explanation generator (M8)

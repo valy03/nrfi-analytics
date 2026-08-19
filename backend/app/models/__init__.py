@@ -12,6 +12,7 @@ from app.models.game_stats import PitcherGameStats, TeamGameStats
 from app.models.pitcher import Pitcher
 from app.models.prediction import Prediction, PredictionResult
 from app.models.team import Team
+from app.models.venue import Venue
 
 __all__ = [
     "Base",
@@ -22,4 +23,5 @@ __all__ = [
     "PredictionResult",
     "Team",
     "TeamGameStats",
+    "Venue",
 ]

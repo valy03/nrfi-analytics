@@ -19,6 +19,7 @@ from sqlalchemy import (
     Boolean,
     CheckConstraint,
     Date,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -87,6 +88,27 @@ class Game(Base, TimestampMixin):
     home_runs_1st: Mapped[int | None] = mapped_column(Integer)
     first_inning_runs: Mapped[int | None] = mapped_column(Integer)
     nrfi: Mapped[bool | None] = mapped_column(Boolean, index=True)
+
+    # --- weather (M8.5) — one snapshot, captured alongside the M7 job;
+    # display-only per research.md, so "latest reading" is all this needs
+    # rather than a history of readings. Null until a game both has a venue
+    # app.collection.weather recognizes and has actually been collected.
+    # Float, not Numeric — see app/models/venue.py's latitude/longitude
+    # comment: a Decimal column defeats app.ingestion.upsert's
+    # changed-vs-unchanged comparison against the plain floats the API
+    # returns, and this is written through that same upsert path.
+    weather_temp_f: Mapped[float | None] = mapped_column(Float)
+    weather_conditions: Mapped[str | None] = mapped_column(String(60))
+    weather_wind_mph: Mapped[float | None] = mapped_column(Float)
+    weather_wind_direction_deg: Mapped[int | None] = mapped_column(Integer)
+    weather_captured_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime)
+
+    # --- odds (M8.5) — moneyline only, display-only per research.md, not a
+    # model input. One bookmaker's line, captured once a day.
+    home_moneyline: Mapped[int | None] = mapped_column(Integer)
+    away_moneyline: Mapped[int | None] = mapped_column(Integer)
+    odds_bookmaker: Mapped[str | None] = mapped_column(String(40))
+    odds_captured_at: Mapped[dt.datetime | None] = mapped_column(UtcDateTime)
 
     # --- relationships --------------------------------------------------
     away_team: Mapped[Team] = relationship(foreign_keys=[away_team_id])

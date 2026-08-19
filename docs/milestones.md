@@ -583,7 +583,73 @@ Postgres: all 8 endpoints, `/docs` Swagger UI, and the full OpenAPI spec.
 
 # M8.5 — Weather & Odds Collection
 
-**Status:** Not Started
+**Status:** Done (2026-08-19) — both sources land in Postgres and surface
+through the real `/api/games` endpoints, verified against live API calls
+(not fixtures) for a real 9-game slate (2026-08-20).
+
+**Venue coordinates came from the MLB Stats API itself, not a hand-typed
+table.** The deliverable left "static table if [venue data] is thin" as a
+fallback, but `statsapi.get('venue', {'venueIds': ..., 'hydrate': 'location'})`
+returns real `defaultCoordinates` (lat/lon) for every park directly — including
+current details for parks that wouldn't be in any static list written from
+memory (the Athletics' temporary home at Sutter Health Park, renamed venues
+like Daikin Park and Rate Field). `app/ingestion/venues.py` seeds a `venues`
+reference table the same way `app/ingestion/teams.py` seeds `teams` — not
+foreign-keyed from `games.venue_id`, deliberately: the M2 historical backfill
+includes spring-training and international venues outside the ~30 active
+parks, and a hard FK against ~18k already-loaded games risked failing on
+exactly the rows this table was never meant to cover. It's a lookup
+`app.collection.weather` resolves what it can from, not a constraint.
+
+**A real bug, caught before it shipped:** `Venue.latitude`/`longitude` and
+`Game.weather_temp_f`/`weather_wind_mph` were first modeled as `Numeric` —
+matching decimal-money-style columns elsewhere in the schema. Postgres (and
+SQLite) read a `Numeric` column back as `decimal.Decimal`, and comparing that
+against the plain `float` the APIs return is `app.ingestion.upsert`'s
+change-detection check — `Decimal('42.346456') != 42.346456` is `True` more
+often than not, because a float's nearest binary value rarely matches a
+Decimal's exact one. Every re-seed would have reported "updated" forever,
+never "unchanged" — the exact idempotency guarantee every M1-M8 loader is
+built around. Caught by `test_seed_venues_is_idempotent` actually failing
+during development, not by inspection. Fixed by using `Float` for anything
+that's a measurement, not a database Decimal for anything that isn't money.
+
+**Weather** (`app/collection/weather.py`, OpenWeather free tier): the free
+tier has no point-in-time-in-the-future forecast, so a game's conditions are
+the closest 3-hour forecast bucket to its actual start time
+(`/data/2.5/forecast`), not a live "right now" reading — the two can differ
+by up to ~90 minutes when the job runs well before first pitch, an accepted
+approximation for a display-only field. `app.prediction.enrich` fetches the
+forecast once per *unique venue* among a slate's eligible games and picks
+each game its own closest bucket from that one response, so a doubleheader
+never costs two calls.
+
+**Odds** (`app/collection/odds.py`, The Odds API free tier): one request
+returns the *entire* day's MLB slate with every bookmaker's moneyline, so
+"one call per day" was already the natural shape — no batching logic needed,
+just not calling it more than once. (The free tier is actually a 500-request
+quota, not the 25/day `research.md` recorded — corrected there. Doesn't
+change anything: the design was already one call regardless.) DraftKings is
+preferred when present, falling back to whatever bookmaker posted a line.
+
+Both are wired into `app/prediction/job.py` right after predictions save,
+and both are deliberately **best-effort**: `enrich_weather`/`enrich_odds`
+catch their own API errors and simply write nothing for that run rather than
+raising — a weather outage must never fail the job predictions actually
+depend on. Verified live: `python -m app.prediction.job --date 2026-08-20`
+against a real 9-game slate captured real temps (69.9-102.7°F), conditions
+(Clear/Rain/Clouds), and DraftKings moneylines for all 9 games; re-running
+correctly refreshed all 9 (weather/odds are point-in-time snapshots, not
+static reference data, so every run *should* report "updated," not
+"unchanged" — confirmed via `docker compose logs` and a direct
+`/api/games/822934` request showing the real captured values). The Odds API
+quota showed 495/500 remaining after this session's testing.
+
+`app/schemas/games.py`'s `weather`/`odds` fields — `dict[str, Any]`
+placeholders since M8 — are now typed `WeatherOut`/`OddsOut` models. 41 new
+tests (venue seeding, both API clients with `requests` stubbed, enrichment
+against the SQLite fixture, the API layer with real captured values), 212
+total.
 
 **Goal:** The two data sources `research.md` decided on but no milestone
 ever actually collected — weather (OpenWeather) and betting odds (The Odds
@@ -620,9 +686,8 @@ this just reads between M8 and M9.
 **Exit Criteria:**
 - A real game's `/api/games/{game_pk}` response shows real weather and
   real odds, sourced from live API calls, not fixtures
-- Free-tier rate limits are respected — The Odds API in particular (25
-  req/day) needs the whole day's slate covered by very few calls, not one
-  call per game
+- Free-tier rate limits are respected — The Odds API in particular needs
+  the whole day's slate covered by very few calls, not one call per game
 
 **Depends on:** M7 (shares its daily cadence), M8 (defines the response
 shape these fields fill in)
@@ -739,7 +804,7 @@ Not sequenced yet — pull from planning.md's Stretch Features list once MVP
 | M6 | Model Iteration & Selection | M5 | Done |
 | M7 | Prediction Service & Automation | M1, M6 | In Progress |
 | M8 | REST API | M7, M3 | Done |
-| M8.5 | Weather & Odds Collection | M7, M8 | Not Started |
+| M8.5 | Weather & Odds Collection | M7, M8 | Done |
 | M9 | Dashboard: Today's Games | M8 | Not Started |
 | M10 | Dashboard: Game Details | M9 | Not Started |
 | M11 | Historical Results & Analytics | M7, M8 | Not Started |
