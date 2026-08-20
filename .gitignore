@@ -12,6 +12,11 @@ venv/
 node_modules/
 dist/
 .vite/
+*.tsbuildinfo
+# tsconfig.node.json is a composite project without noEmit, so `tsc -b`
+# (part of `npm run build`) legitimately emits these next to the source.
+vite.config.js
+vite.config.d.ts
 
 # Data (M2 backfill cache + derived datasets — don't commit)
 data/raw/

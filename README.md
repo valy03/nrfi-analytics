@@ -12,22 +12,21 @@ running what exists right now.
 
 ## Status
 
-**M8.5 — Weather & Odds Collection (done).** On top of the M0 scaffolding,
-the backend can pull the daily MLB schedule and probable starting pitchers
-(M1), backfill historical Statcast pitch data into a per-game NRFI-labeled
-dataset (M2), load both into PostgreSQL behind Alembic migrations (M3), turn
-the stored data into a leakage-free 32-feature matrix over 17,933 games
-(M4), train a season-split Logistic Regression baseline (M5), head-to-head
-it against an XGBoost candidate that loses on held-out AUC so the simpler
-model stays champion (M6), generate + store real predictions for the
-champion model on demand, with an optional scheduler that automates the
-timing (M7), serve all of it — today's games, game detail with a rule-based
-explanation, historical accuracy, and analytics leaderboards — over a REST
-API verified against live Postgres data (M8), and fill in that API's
-weather/odds fields with real live-captured data instead of permanent
-`null`s (M8.5). M7's own exit criterion (observed running *unattended*
-across real game days) is still deferred to M12's real deployment — see
-`docs/milestones.md`.
+**M9 — Dashboard: Today's Games (done).** The backend is fully built
+through M8.5: daily MLB schedule and probable pitchers (M1), historical
+Statcast backfill (M2) in PostgreSQL behind Alembic migrations (M3), a
+leakage-free 32-feature matrix over 17,933 games (M4), a season-split
+Logistic Regression champion picked over an XGBoost candidate (M5/M6),
+daily prediction generation with an optional scheduler (M7), a REST API
+covering today's games, game detail with a rule-based explanation,
+historical accuracy, and analytics leaderboards (M8), and real weather/odds
+on top of it (M8.5). The React dashboard fetches and renders that API —
+team logos, pitchers, predictions, weather, sort/search/filter — verified
+in an actual browser (not just a clean build), which caught a stale-status
+display bug and a Docker-Desktop-on-Windows dev-server bug along the way —
+see `docs/milestones.md` under M9. M7's own exit criterion (observed
+running *unattended* across real game days) is still deferred to M12's
+real deployment.
 
 ---
 
@@ -307,6 +306,29 @@ game is skipped and logged in the job's output, never fails the run.
 curl "http://localhost:8000/api/games/824803" | python -m json.tool  # weather + odds on a real game
 ```
 
+## Dashboard (M9)
+
+```bash
+docker compose up -d
+```
+
+Then visit `http://localhost:5173`. The homepage fetches `/api/games` (no
+`date` param — the backend resolves "today" itself via `mlb_today()`) and
+renders it as a card grid: team logos (MLB's own static CDN, keyed by team
+id), starting pitchers with season NRFI%, the prediction with its
+confidence, and a weather summary. Search, prediction/confidence filters,
+and sort-by-confidence are all client-side — the day's slate is fetched
+once and filtered/sorted in the browser, since it's never more than ~15
+games.
+
+Traditional pitcher/team stats and odds aren't on this page — requirements.md
+scopes those to the M10 game-detail page, not the dashboard list.
+
+If an edit to `frontend/src` doesn't seem to show up after a refresh, it's
+very likely Docker Desktop's file-watching gap on Windows, not a broken
+change — see `docs/milestones.md` under M9. `docker compose up -d
+--force-recreate frontend` reliably fixes it.
+
 ### Tests
 
 ```bash
@@ -338,8 +360,11 @@ nrfi-analytics/
 │       └── routers/    games, history, analytics endpoints (M8)
 ├── frontend/           React + TypeScript + Tailwind (Vite)
 │   └── src/
-│       ├── App.tsx     Placeholder page — becomes M9 dashboard
-│       └── main.tsx    Entrypoint
+│       ├── App.tsx     Router (M9)
+│       ├── main.tsx    Entrypoint
+│       ├── api/         Typed API client + types mirroring app/schemas (M9)
+│       ├── pages/        Dashboard.tsx (M9)
+│       └── components/  GameCard, PredictionBadge, TeamLogo, WeatherSummary, FiltersBar (M9)
 ├── docs/               Planning documents (this is the source of truth)
 ├── docker-compose.yml  Postgres + backend + frontend, one command (+ opt-in scheduler)
 ├── .env.example        Required env vars, no real secrets

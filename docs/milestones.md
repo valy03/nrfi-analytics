@@ -696,7 +696,62 @@ shape these fields fill in)
 
 # M9 — Dashboard: Today's Games
 
-**Status:** Not Started
+**Status:** Done (2026-08-19) — the homepage fetches `/api/games` (no
+`date` param, so the backend resolves "today" via `mlb_today()` rather than
+trusting the visitor's browser timezone) and renders every field
+requirements.md asks for. `tsc -b` and `vite build` both pass clean, and
+the rendered page was actually eyeballed in a browser and confirmed good —
+this session has no browser-automation tool, so a human did that check
+directly rather than it being claimed on the strength of a clean build.
+
+**Two real bugs surfaced during that check, not by inspection:**
+
+1. **Finished/in-progress games looked identical to "not predicted yet."**
+   The first real screenshot showed today's slate almost entirely reading
+   "No prediction yet" — correct in substance (M7 only predicts games that
+   haven't started, and it was evening ET with 14 of 15 games already
+   `Final`/`In Progress`), but misleading in presentation: nothing
+   distinguished "this game already happened" from "check back later."
+   `PredictionBadge` now mirrors `app/prediction/job.py`'s
+   `PENDING_STATUSES` set client-side and shows the real status (`Final`,
+   `In Progress`, ...) instead of the generic message once a game has
+   actually started.
+
+2. **The dev server was silently serving stale code.** Docker Desktop's
+   Windows bind mount doesn't reliably forward filesystem events into the
+   Linux container, so Vite's file watcher never fired — not just over the
+   HMR websocket, but for fresh HTTP requests too, since Vite trusts its
+   watcher to invalidate its transform cache rather than re-checking the
+   file on every request. Confirmed directly: edited a component, `curl`'d
+   its dev-server-transformed source, and the edit simply wasn't there,
+   repeatedly, until the container was recreated with polling enabled.
+   Fixed two ways — `server.watch.usePolling` in `vite.config.ts`, and the
+   `CHOKIDAR_USEPOLLING`/`CHOKIDAR_INTERVAL` env vars on the `frontend`
+   service in `docker-compose.yml`, since the config option alone wasn't
+   enough and needed a full container recreate (not just `docker compose
+   restart`) to take effect. Verified by editing a file and watching a real
+   `hmr update` log line appear. Worth remembering for M10/M11: a
+   no-op-looking UI change during this project might mean the dev server
+   is stale, not that the change was wrong.
+
+Team logos use MLB's own static CDN (`mlbstatic.com/team-logos/{team_id}.svg`,
+keyed by the same id our API already returns) rather than a fabricated or
+hand-picked source — confirmed live (200, `image/svg+xml`) for real team
+ids before wiring it in, with a graceful text-abbreviation fallback if an
+image ever 404s.
+
+Sort/search/filter are **client-side**, not query params against M8's API,
+even though the backend already supports all four server-side. A day's
+slate is at most ~15 games — fetched once, filtered/sorted with plain
+array methods in the browser. Instant on every keystroke, no debounce, no
+loading spinner per filter change, and still fully satisfies
+requirements.md's "sort by confidence / search teams / filter by
+prediction / filter by confidence" — those are UI behaviors, not a mandate
+for round-tripping to the server on every interaction.
+
+`frontend/src/api/types.ts` mirrors `app/schemas/games.py` by hand — no
+shared schema generation yet, so the two need to be kept in sync manually
+if either changes.
 
 **Goal:** The homepage described in requirements.md is real and wired to
 the API.
@@ -805,7 +860,7 @@ Not sequenced yet — pull from planning.md's Stretch Features list once MVP
 | M7 | Prediction Service & Automation | M1, M6 | In Progress |
 | M8 | REST API | M7, M3 | Done |
 | M8.5 | Weather & Odds Collection | M7, M8 | Done |
-| M9 | Dashboard: Today's Games | M8 | Not Started |
+| M9 | Dashboard: Today's Games | M8 | Done |
 | M10 | Dashboard: Game Details | M9 | Not Started |
 | M11 | Historical Results & Analytics | M7, M8 | Not Started |
 | M12 | Deployment | M9, M10, M11 | Not Started |

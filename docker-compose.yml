@@ -61,6 +61,14 @@ services:
     restart: unless-stopped
     environment:
       VITE_API_URL: http://localhost:8000
+      # Docker Desktop's Windows bind mount doesn't reliably forward
+      # filesystem change events into the container, so Vite's file
+      # watcher (even with server.watch.usePolling in vite.config.ts)
+      # silently never fires and keeps serving stale transforms. This is
+      # the env var chokidar itself checks, which several tools in the
+      # dependency chain read more reliably than Vite's passthrough config.
+      CHOKIDAR_USEPOLLING: "true"
+      CHOKIDAR_INTERVAL: "300"
     ports:
       - "5173:5173"
     volumes:
