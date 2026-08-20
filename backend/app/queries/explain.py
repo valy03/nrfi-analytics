@@ -97,7 +97,7 @@ def _park_factor(features: dict) -> _Factor | None:
     park_rate = features.get("park_nrfi_rate")
     if park_rate is None or park_rate == _COIN_FLIP:
         return None
-    direction = "suppresses" if park_rate > _COIN_FLIP else "favors"
+    direction = "suppressed" if park_rate > _COIN_FLIP else "favored"
     return _Factor(
         magnitude=abs(park_rate - _COIN_FLIP),
         text=(

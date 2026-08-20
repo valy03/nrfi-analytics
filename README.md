@@ -12,7 +12,7 @@ running what exists right now.
 
 ## Status
 
-**M9 — Dashboard: Today's Games (done).** The backend is fully built
+**M10 — Dashboard: Game Details (done).** The backend is fully built
 through M8.5: daily MLB schedule and probable pitchers (M1), historical
 Statcast backfill (M2) in PostgreSQL behind Alembic migrations (M3), a
 leakage-free 32-feature matrix over 17,933 games (M4), a season-split
@@ -20,11 +20,14 @@ Logistic Regression champion picked over an XGBoost candidate (M5/M6),
 daily prediction generation with an optional scheduler (M7), a REST API
 covering today's games, game detail with a rule-based explanation,
 historical accuracy, and analytics leaderboards (M8), and real weather/odds
-on top of it (M8.5). The React dashboard fetches and renders that API —
-team logos, pitchers, predictions, weather, sort/search/filter — verified
-in an actual browser (not just a clean build), which caught a stale-status
-display bug and a Docker-Desktop-on-Windows dev-server bug along the way —
-see `docs/milestones.md` under M9. M7's own exit criterion (observed
+on top of it (M8.5). The React dashboard covers both today's games (M9)
+and a full game-detail page (M10) — pitcher/team stats, prediction
+probabilities, the rule-based explanation, weather, and odds — both
+verified in an actual browser, not just a clean build. That verification
+caught real bugs each time: a stale-status display gap and a Docker-
+Desktop-on-Windows JS-watching bug in M9, a grammar bug in the explanation
+text and a matching Tailwind-CSS-watching bug in M10 — see
+`docs/milestones.md` under M9/M10. M7's own exit criterion (observed
 running *unattended* across real game days) is still deferred to M12's
 real deployment.
 
@@ -324,10 +327,21 @@ games.
 Traditional pitcher/team stats and odds aren't on this page — requirements.md
 scopes those to the M10 game-detail page, not the dashboard list.
 
-If an edit to `frontend/src` doesn't seem to show up after a refresh, it's
-very likely Docker Desktop's file-watching gap on Windows, not a broken
-change — see `docs/milestones.md` under M9. `docker compose up -d
---force-recreate frontend` reliably fixes it.
+If an edit to `frontend/src` doesn't seem to show up after a refresh —
+including a brand-new Tailwind utility class silently missing from the
+rendered styles — it's very likely Docker Desktop's file-watching gap on
+Windows, not a broken change — see `docs/milestones.md` under M9/M10.
+`docker compose up -d --force-recreate frontend` reliably fixes it.
+
+## Game details (M10)
+
+Click any game on the dashboard, or visit `/games/{game_pk}` directly. The
+page fetches `/api/games/{game_pk}` and renders every field
+requirements.md's Game Details section lists: pitcher stats (including the
+actual last-5-starts table, not just the aggregate rate), team stats,
+prediction probabilities, the rule-based explanation, weather, and odds.
+Traditional stats (ERA/WHIP/FIP/xERA/OPS/OBP/SLG/batting average) still
+render as `—` — same M8 scope decision, no data source yet.
 
 ### Tests
 
@@ -360,11 +374,14 @@ nrfi-analytics/
 │       └── routers/    games, history, analytics endpoints (M8)
 ├── frontend/           React + TypeScript + Tailwind (Vite)
 │   └── src/
-│       ├── App.tsx     Router (M9)
+│       ├── App.tsx     Router (M9, M10)
 │       ├── main.tsx    Entrypoint
-│       ├── api/         Typed API client + types mirroring app/schemas (M9)
-│       ├── pages/        Dashboard.tsx (M9)
-│       └── components/  GameCard, PredictionBadge, TeamLogo, WeatherSummary, FiltersBar (M9)
+│       ├── api/         Typed API client + types mirroring app/schemas (M9, M10)
+│       ├── lib/          format.ts, gameStatus.ts — shared formatting/status helpers (M10)
+│       ├── pages/        Dashboard.tsx (M9), GameDetailPage.tsx (M10)
+│       └── components/  GameCard, PredictionBadge, TeamLogo, WeatherSummary, FiltersBar (M9);
+│                         PitcherDetailCard, TeamStatsCard, OddsSummary, ExplanationList,
+│                         PredictionSummary (M10)
 ├── docs/               Planning documents (this is the source of truth)
 ├── docker-compose.yml  Postgres + backend + frontend, one command (+ opt-in scheduler)
 ├── .env.example        Required env vars, no real secrets

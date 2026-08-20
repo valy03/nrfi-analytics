@@ -771,7 +771,54 @@ the API.
 
 # M10 — Dashboard: Game Details
 
-**Status:** Not Started
+**Status:** Done (2026-08-19) — clicking a `GameCard` (or visiting
+`/games/{game_pk}` directly) shows every field requirements.md's Game
+Details section lists: General (teams, date, time, stadium, weather),
+Starting Pitchers (name, ERA/WHIP/FIP/xERA — still `null`, no data source,
+same M8 scope decision — K%, BB%, career/season/last-5 NRFI%, and the
+actual last-5-starts table), Team Statistics (first-inning runs, OPS/OBP/
+SLG/batting average — same `null` story, home/away split), Prediction
+(NRFI/YRFI probabilities, confidence), and Explanation (the M8 rule-based
+bullets). Odds are shown too, though requirements.md doesn't separately
+break them out from "Game Details." Confirmed in a real browser after a
+hard refresh — not just a clean build.
+
+This was almost entirely a frontend milestone: the backend `GameDetail`
+API, feature-snapshot-sourced pitcher/team stats, and explanation generator
+were all already built and tested in M8/M8.5. The one backend change was
+a real grammar bug caught while pulling a live example to build the
+TypeScript types against — the park-effect explanation read "This ballpark
+has historically favors first-inning scoring," a present/past tense
+mismatch in `app/queries/explain.py`'s `_park_factor` (`"favors"` /
+`"suppresses"` → `"favored"` / `"suppressed"`). Fixed with its test
+assertions updated to match.
+
+**A second Tailwind/Docker-Desktop staleness bug, same family as M9's:**
+the game-detail header rendered with the team logos and abbreviations
+side-by-side instead of stacked — `flex-col` wasn't taking effect. The
+served CSS (`curl http://localhost:5173/src/index.css`) confirmed it: zero
+occurrences of `flex-col`, a utility class no earlier file had ever used.
+Tailwind's JIT class scanning depends on the same file-watching Vite's JS
+HMR does, and apparently needs its own nudge distinct from the M9 polling
+fix — `docker compose up -d --force-recreate frontend` picked up the new
+classes immediately after. Notably, `npm run build`'s production CSS was
+correct the whole time (a fresh build isn't subject to the dev server's
+watch-cache), which is exactly why "the build passes" isn't sufficient
+verification for a dev-server-rendered UI — this session's second reminder
+of that, now for CSS specifically rather than JS.
+
+`frontend/src/lib/gameStatus.ts` factors the `PENDING_STATUSES` mirror (see
+M9) out of `PredictionBadge` so the dashboard card and this page's
+`PredictionSummary` agree on what counts as "hasn't started yet" from one
+place, not two independently-maintained copies.
+
+"Historical matchups," named in this milestone's own deliverables text
+below, isn't actually in requirements.md's Game Details field list (only
+General / Starting Pitchers / Team Statistics / Prediction / Explanation
+are) — skipped for the same reason M8 skipped it: not required by the
+document that actually defines the exit criteria, and building a
+head-to-head-between-these-two-teams query is new backend scope, not a
+frontend rendering task.
 
 **Goal:** Clicking into a game shows the full breakdown.
 
@@ -861,6 +908,6 @@ Not sequenced yet — pull from planning.md's Stretch Features list once MVP
 | M8 | REST API | M7, M3 | Done |
 | M8.5 | Weather & Odds Collection | M7, M8 | Done |
 | M9 | Dashboard: Today's Games | M8 | Done |
-| M10 | Dashboard: Game Details | M9 | Not Started |
+| M10 | Dashboard: Game Details | M9 | Done |
 | M11 | Historical Results & Analytics | M7, M8 | Not Started |
 | M12 | Deployment | M9, M10, M11 | Not Started |

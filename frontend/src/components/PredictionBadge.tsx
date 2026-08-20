@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { Prediction } from "../api/types";
+import { hasNotStarted } from "../lib/gameStatus";
 
 interface PredictionBadgeProps {
   prediction: Prediction | null;
@@ -14,19 +15,6 @@ const LABEL_STYLES: Record<string, string> = {
   YRFI: "bg-amber-50 text-amber-700 ring-amber-600/20",
 };
 
-// Mirrors app/prediction/job.py's PENDING_STATUSES — the statuses the
-// backend considers "hasn't started yet, still eligible to predict". A
-// status outside this set means the game is already underway or decided,
-// so a missing prediction needs a different message than "check back
-// later" — there will never be one for this game.
-const PENDING_STATUSES = new Set([
-  "Scheduled",
-  "Pre-Game",
-  "Warmup",
-  "Delayed Start",
-  "Delayed",
-]);
-
 function NeutralBadge({ children }: { children: ReactNode }) {
   return (
     <span className="inline-flex items-center rounded-full bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-400 ring-1 ring-inset ring-slate-200">
@@ -37,7 +25,9 @@ function NeutralBadge({ children }: { children: ReactNode }) {
 
 export function PredictionBadge({ prediction, status }: PredictionBadgeProps) {
   if (!prediction) {
-    if (status && !PENDING_STATUSES.has(status)) {
+    if (!hasNotStarted(status)) {
+      // Already underway or decided — there will never be a prediction for
+      // this game, so "no prediction yet" would wrongly imply one's coming.
       return <NeutralBadge>{status}</NeutralBadge>;
     }
     return <NeutralBadge>No prediction yet</NeutralBadge>;

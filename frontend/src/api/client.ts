@@ -1,4 +1,4 @@
-import type { GameSummary, PredictedLabel } from "./types";
+import type { GameDetail, GameSummary, PredictedLabel } from "./types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -43,6 +43,17 @@ export async function getGames(
   const response = await fetch(url, { signal });
   if (!response.ok) {
     throw new ApiError(`Failed to load games (${response.status})`, response.status);
+  }
+  return response.json();
+}
+
+export async function getGameDetail(
+  gamePk: number,
+  signal?: AbortSignal
+): Promise<GameDetail> {
+  const response = await fetch(`${API_URL}/api/games/${gamePk}`, { signal });
+  if (!response.ok) {
+    throw new ApiError(`Failed to load game ${gamePk} (${response.status})`, response.status);
   }
   return response.json();
 }

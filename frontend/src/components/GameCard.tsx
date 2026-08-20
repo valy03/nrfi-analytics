@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import type { GameSummary, Pitcher, Team } from "../api/types";
 import { PredictionBadge } from "./PredictionBadge";
 import { TeamLogo } from "./TeamLogo";
@@ -43,7 +44,10 @@ interface GameCardProps {
 
 export function GameCard({ game }: GameCardProps) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md">
+    <Link
+      to={`/games/${game.game_pk}`}
+      className="block rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
+    >
       <div className="mb-3 flex items-center justify-between text-xs text-slate-400">
         <span>{formatStartTime(game.start_time_utc)}</span>
         <span>{game.venue_name ?? "Venue TBD"}</span>
@@ -59,6 +63,6 @@ export function GameCard({ game }: GameCardProps) {
         <PredictionBadge prediction={game.prediction} status={game.status} />
         <WeatherSummary weather={game.weather} />
       </div>
-    </div>
+    </Link>
   );
 }

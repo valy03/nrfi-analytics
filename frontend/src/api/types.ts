@@ -61,6 +61,30 @@ export interface Odds {
   captured_at: string;
 }
 
+export interface TeamStats {
+  scored_1st_rate: number | null;
+  scored_1st_rate_season: number | null;
+  scored_1st_rate_recent: number | null;
+  scored_1st_rate_split: number | null;
+  runs_1st_avg: number | null;
+  k_rate_1st: number | null;
+  games_prior: number | null;
+  // Traditional stats — no data source yet (docs/milestones.md M8).
+  ops: number | null;
+  obp: number | null;
+  slg: number | null;
+  batting_avg: number | null;
+}
+
+export interface ActualResult {
+  home_runs_1st: number | null;
+  away_runs_1st: number | null;
+  first_inning_runs: number | null;
+  nrfi: boolean | null;
+  home_score: number | null;
+  away_score: number | null;
+}
+
 export interface GameSummary {
   game_pk: number;
   game_date: string;
@@ -73,4 +97,23 @@ export interface GameSummary {
   away_pitcher: Pitcher | null;
   prediction: Prediction | null;
   weather: Weather | null;
+}
+
+export interface GameDetail {
+  game_pk: number;
+  game_date: string;
+  start_time_utc: string | null;
+  status: string | null;
+  venue_name: string | null;
+  home_team: Team;
+  away_team: Team;
+  home_pitcher: Pitcher | null;
+  away_pitcher: Pitcher | null;
+  home_team_stats: TeamStats | null;
+  away_team_stats: TeamStats | null;
+  prediction: Prediction | null;
+  explanation: string[];
+  actual_result: ActualResult | null;
+  weather: Weather | null;
+  odds: Odds | null;
 }

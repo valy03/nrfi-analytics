@@ -61,7 +61,7 @@ def test_park_factor_compares_against_a_coin_flip_not_league_average():
     explanation = generate_explanation(_prediction(features))
 
     assert len(explanation) == 1
-    assert "suppresses" in explanation[0]
+    assert "suppressed" in explanation[0]
     assert "65%" in explanation[0]
 
 
@@ -69,7 +69,7 @@ def test_park_factor_reads_favors_below_a_coin_flip():
     features = {"park_nrfi_rate": 0.35}
     explanation = generate_explanation(_prediction(features))
 
-    assert "favors" in explanation[0]
+    assert "favored" in explanation[0]
 
 
 def test_a_park_rate_at_exactly_the_coin_flip_is_not_a_factor():
