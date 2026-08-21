@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import {
   ApiError,
   getAccuracyReport,
   getPredictionHistory,
 } from "../api/client";
 import type { AccuracyReport, PredictedLabel, PredictionHistoryItem } from "../api/types";
+import { StatTile } from "../components/StatTile";
 import { WinLossBadge } from "../components/WinLossBadge";
 
 const PAGE_SIZE = 25;
@@ -23,15 +23,6 @@ interface Filters {
 }
 
 const DEFAULT_FILTERS: Filters = { startDate: "", endDate: "", team: "", prediction: "ALL" };
-
-function StatTile({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <div className="text-xs font-medium uppercase tracking-wide text-slate-400">{label}</div>
-      <div className="mt-1 text-2xl font-bold text-slate-900">{value}</div>
-    </div>
-  );
-}
 
 function formatPct(value: number | null): string {
   return value == null ? "—" : `${(value * 100).toFixed(1)}%`;
@@ -100,10 +91,6 @@ export function HistoryPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <Link to="/" className="mb-6 inline-block text-sm text-teal-600 hover:text-teal-700">
-        ← Back to today's games
-      </Link>
-
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Historical Results</h1>
         <p className="text-sm text-slate-500">

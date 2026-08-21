@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { ApiError, getGameDetail } from "../api/client";
 import type { GameDetail } from "../api/types";
 import { ExplanationList } from "../components/ExplanationList";
@@ -43,13 +43,6 @@ export function GameDetailPage() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <Link
-        to="/"
-        className="mb-6 inline-block text-sm text-teal-600 hover:text-teal-700"
-      >
-        ← Back to today's games
-      </Link>
-
       {state.status === "loading" && (
         <p className="text-center text-slate-400">Loading game…</p>
       )}

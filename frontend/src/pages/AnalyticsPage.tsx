@@ -1,5 +1,4 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Link } from "react-router-dom";
 import {
   ApiError,
   getAccuracyReport,
@@ -66,10 +65,6 @@ export function AnalyticsPage() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <Link to="/" className="mb-6 inline-block text-sm text-teal-600 hover:text-teal-700">
-        ← Back to today's games
-      </Link>
-
       <header className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Analytics</h1>
         <p className="text-sm text-slate-500">

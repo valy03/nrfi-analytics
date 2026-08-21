@@ -931,30 +931,42 @@ criteria in planning.md.
 # Known gaps vs. wireframes.md
 
 Surfaced during M11 (2026-08-21): `docs/wireframes.md` — the actual
-page-by-page UI spec — describes more than M9-M11 built, and these items
-are still MVP scope per that document's own "MVP Screens" list, not
-stretch features. Logged here rather than fixed in-pass, per the decision
-made when the gap was found (M11 stayed narrow, matching milestones.md's
-literal deliverables).
+page-by-page UI spec — described more than M9-M11 had built, and these
+items were still MVP scope per that document's own "MVP Screens" list, not
+stretch features. Logged here rather than fixed in the M11 pass, per the
+decision made when the gap was found; most of it was then filled in
+directly afterward (2026-08-21), scoped to items 1/2/4 below at the user's
+call — item 3 (Analytics) stays open, deliberately deprioritized.
 
-- **Dashboard (M9)**: no "Today's Best NRFI Opportunities" ranked top-picks
-  section, no summary cards (Games Today / Model Accuracy / Season Record /
-  ROI), no "Last Updated" timestamp. What shipped is the wireframe's
-  secondary "All Today's Games" section as the whole page.
-- **No persistent navigation** (`Dashboard · History · Analytics · About`)
-  anywhere — pages are reachable only by direct link (Dashboard header
-  links to History/Analytics; a "back" link on the other three).
-- **Analytics (M11)**: only "best" pitcher/team leaderboards, not best
-  *and* worst; no "Highest Confidence Picks" ranking; no **Model Metrics**
-  section (Accuracy/Precision/Recall/ROC AUC/Log Loss) — that data exists
-  in `data/models/champion_metrics.json` from M5/M6 but no API endpoint
-  serves it yet.
-- **No About page** — isn't owned by any milestone M0-M12, the same kind
-  of sequencing gap M8.5 found for weather/odds.
+- ~~**Dashboard (M9)**: no "Today's Best NRFI Opportunities"...~~ **Done.**
+  `Dashboard.tsx` now leads with a ranked top-picks list (rank, matchup,
+  the real explanation's first bullet — fetched per pick via
+  `getGameDetail`, not a re-implemented copy of the backend's rule-based
+  logic — prediction badge, and fair odds computed client-side from the
+  model's own probability via `lib/format.ts`'s `fairAmericanOdds`),
+  summary cards (Games Today / Model Accuracy / Season Record / ROI — ROI
+  still `—`, no odds-based P&L source), and a "predictions last updated"
+  relative timestamp. Unconfirmed-pitcher games render at `opacity-60` in
+  the full list rather than looking identical to a real pick.
+- ~~**No persistent navigation**~~ **Done.** `components/NavBar.tsx` — a
+  persistent Dashboard/History/Analytics/About header on every route
+  (game-detail pages count as "Dashboard" for the active-state highlight,
+  matching where they're reached from). The per-page "back to dashboard"
+  links it replaced are gone.
+- **Analytics (M11): still open, deliberately.** Best/worst leaderboards, a
+  "Highest Confidence Picks" ranking, and the Model Metrics section
+  (Accuracy/Precision/Recall/ROC AUC/Log Loss from
+  `data/models/champion_metrics.json` — still no endpoint serves it) are
+  not built. Not a priority right now per the user; revisit whenever it is.
+- ~~**No About page**~~ **Done.** `pages/AboutPage.tsx` — Project Overview,
+  How Predictions Work, Technology Stack, Machine Learning Pipeline (the
+  real M5/M6 numbers: 51.9% accuracy / 0.515 ROC AUC on 2024-2026 held-out
+  data, XGBoost losing by 0.0091 AUC), Data Sources, Disclaimer, and a
+  verified link to the actual GitHub repo.
 - **Game Details (M10) odds**: wireframe wants Game Total / NRFI Odds /
   YRFI Odds alongside moneyline — not a build gap, a real data-availability
   limit: The Odds API's free tier (research.md's documented choice) only
-  returns moneyline (h2h).
+  returns moneyline (h2h). Still open; no fix possible without a paid tier.
 
 ---
 

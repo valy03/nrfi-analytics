@@ -43,10 +43,17 @@ interface GameCardProps {
 }
 
 export function GameCard({ game }: GameCardProps) {
+  // Unconfirmed starters (wireframes.md: "a pick needs a real prediction
+  // behind it") — the game still belongs in the full list, just visually
+  // deprioritized rather than looking identical to a fully-predicted one.
+  const unconfirmed = !game.home_pitcher || !game.away_pitcher;
+
   return (
     <Link
       to={`/games/${game.game_pk}`}
-      className="block rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500"
+      className={`block rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-teal-500 ${
+        unconfirmed ? "opacity-60" : ""
+      }`}
     >
       <div className="mb-3 flex items-center justify-between text-xs text-slate-400">
         <span>{formatStartTime(game.start_time_utc)}</span>

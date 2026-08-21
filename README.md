@@ -12,24 +12,29 @@ running what exists right now.
 
 ## Status
 
-**M11 — Historical Results & Analytics (done).** The backend is fully
-built through M8.5: daily MLB schedule and probable pitchers (M1),
-historical Statcast backfill (M2) in PostgreSQL behind Alembic migrations
-(M3), a leakage-free 32-feature matrix over 17,933 games (M4), a
-season-split Logistic Regression champion picked over an XGBoost candidate
-(M5/M6), daily prediction generation with an optional scheduler (M7), a
-REST API covering today's games, game detail with a rule-based
-explanation, historical accuracy, and analytics leaderboards (M8), and
-real weather/odds on top of it (M8.5). The React frontend now covers
-today's games (M9), a full game-detail page (M10), and historical results
-+ analytics (M11) — results table, accuracy stats, an accuracy-over-time
-chart, NRFI frequency by season, and pitcher/team leaderboards. Every UI
-milestone has been verified in an actual browser, not just a clean build,
-which has caught a real bug every single time — see `docs/milestones.md`
-under M9/M10/M11. M11 also surfaced a real gap between `docs/wireframes.md`
-(the actual page-design spec) and what M9-M11 built — logged as backlog
-under "Known gaps vs. wireframes.md" in `docs/milestones.md` rather than
-fixed in-pass. M7's own exit criterion (observed running *unattended*
+**M11 — Historical Results & Analytics (done), plus most of the
+wireframes.md gap it surfaced.** The backend is fully built through M8.5:
+daily MLB schedule and probable pitchers (M1), historical Statcast
+backfill (M2) in PostgreSQL behind Alembic migrations (M3), a
+leakage-free 32-feature matrix over 17,933 games (M4), a season-split
+Logistic Regression champion picked over an XGBoost candidate (M5/M6),
+daily prediction generation with an optional scheduler (M7), a REST API
+covering today's games, game detail with a rule-based explanation,
+historical accuracy, and analytics leaderboards (M8), and real
+weather/odds on top of it (M8.5). The React frontend covers today's games
+(M9), a full game-detail page (M10), historical results + analytics
+(M11), a persistent Dashboard/History/Analytics/About nav bar, a
+dashboard redesigned around ranked "Today's Best NRFI Opportunities" picks
+with fair odds and summary cards, and an About page — all built right
+after M11 shipped, once a real gap against `docs/wireframes.md` (the
+actual page-design spec) was found and the user scoped which parts to
+close now vs. later. Every UI milestone has been verified in an actual
+browser, not just a clean build, which has caught a real bug or a real
+scope gap essentially every time — see `docs/milestones.md`'s per-milestone
+notes and its "Known gaps vs. wireframes.md" section for what's still
+open (best/worst leaderboards, a Model Metrics endpoint, and a real
+data-availability limit on Vegas odds detail — deliberately deprioritized,
+not forgotten). M7's own exit criterion (observed running *unattended*
 across real game days) is still deferred to M12's real deployment.
 
 ---
@@ -396,16 +401,16 @@ nrfi-analytics/
 │       └── routers/    games, history, analytics endpoints (M8)
 ├── frontend/           React + TypeScript + Tailwind (Vite)
 │   └── src/
-│       ├── App.tsx     Router (M9-M11)
+│       ├── App.tsx     Router + NavBar (M9-M11, nav bar post-M11)
 │       ├── main.tsx    Entrypoint
 │       ├── api/         Typed API client + types mirroring app/schemas (M9-M11)
 │       ├── lib/          format.ts, gameStatus.ts — shared formatting/status helpers (M10)
-│       ├── pages/        Dashboard.tsx (M9), GameDetailPage.tsx (M10),
-│       │                 HistoryPage.tsx, AnalyticsPage.tsx (M11)
+│       ├── pages/        Dashboard.tsx (M9, redesigned post-M11), GameDetailPage.tsx (M10),
+│       │                 HistoryPage.tsx, AnalyticsPage.tsx (M11), AboutPage.tsx (post-M11)
 │       └── components/  GameCard, PredictionBadge, TeamLogo, WeatherSummary, FiltersBar (M9);
 │                         PitcherDetailCard, TeamStatsCard, OddsSummary, ExplanationList,
 │                         PredictionSummary (M10); NrfiFrequencyChart, AccuracyOverTimeChart,
-│                         Leaderboard, WinLossBadge (M11)
+│                         Leaderboard, WinLossBadge (M11); NavBar, StatTile, TopPicks (post-M11)
 ├── docs/               Planning documents (this is the source of truth)
 ├── docker-compose.yml  Postgres + backend + frontend, one command (+ opt-in scheduler)
 ├── .env.example        Required env vars, no real secrets
