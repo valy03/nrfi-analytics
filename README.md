@@ -12,24 +12,25 @@ running what exists right now.
 
 ## Status
 
-**M10 — Dashboard: Game Details (done).** The backend is fully built
-through M8.5: daily MLB schedule and probable pitchers (M1), historical
-Statcast backfill (M2) in PostgreSQL behind Alembic migrations (M3), a
-leakage-free 32-feature matrix over 17,933 games (M4), a season-split
-Logistic Regression champion picked over an XGBoost candidate (M5/M6),
-daily prediction generation with an optional scheduler (M7), a REST API
-covering today's games, game detail with a rule-based explanation,
-historical accuracy, and analytics leaderboards (M8), and real weather/odds
-on top of it (M8.5). The React dashboard covers both today's games (M9)
-and a full game-detail page (M10) — pitcher/team stats, prediction
-probabilities, the rule-based explanation, weather, and odds — both
-verified in an actual browser, not just a clean build. That verification
-caught real bugs each time: a stale-status display gap and a Docker-
-Desktop-on-Windows JS-watching bug in M9, a grammar bug in the explanation
-text and a matching Tailwind-CSS-watching bug in M10 — see
-`docs/milestones.md` under M9/M10. M7's own exit criterion (observed
-running *unattended* across real game days) is still deferred to M12's
-real deployment.
+**M11 — Historical Results & Analytics (done).** The backend is fully
+built through M8.5: daily MLB schedule and probable pitchers (M1),
+historical Statcast backfill (M2) in PostgreSQL behind Alembic migrations
+(M3), a leakage-free 32-feature matrix over 17,933 games (M4), a
+season-split Logistic Regression champion picked over an XGBoost candidate
+(M5/M6), daily prediction generation with an optional scheduler (M7), a
+REST API covering today's games, game detail with a rule-based
+explanation, historical accuracy, and analytics leaderboards (M8), and
+real weather/odds on top of it (M8.5). The React frontend now covers
+today's games (M9), a full game-detail page (M10), and historical results
++ analytics (M11) — results table, accuracy stats, an accuracy-over-time
+chart, NRFI frequency by season, and pitcher/team leaderboards. Every UI
+milestone has been verified in an actual browser, not just a clean build,
+which has caught a real bug every single time — see `docs/milestones.md`
+under M9/M10/M11. M11 also surfaced a real gap between `docs/wireframes.md`
+(the actual page-design spec) and what M9-M11 built — logged as backlog
+under "Known gaps vs. wireframes.md" in `docs/milestones.md` rather than
+fixed in-pass. M7's own exit criterion (observed running *unattended*
+across real game days) is still deferred to M12's real deployment.
 
 ---
 
@@ -343,6 +344,27 @@ prediction probabilities, the rule-based explanation, weather, and odds.
 Traditional stats (ERA/WHIP/FIP/xERA/OPS/OBP/SLG/batting average) still
 render as `—` — same M8 scope decision, no data source yet.
 
+## History & analytics (M11)
+
+Reachable from the "History" / "Analytics" links in the dashboard header
+(there's no persistent nav bar yet — see `docs/milestones.md`'s "Known
+gaps vs. wireframes.md").
+
+- `/history` — every prediction the model has made, graded against the
+  actual outcome once known, with overall accuracy/win-rate stat tiles and
+  filters (date range, team server-side; prediction type client-side over
+  the loaded page).
+- `/analytics` — an accuracy-over-time chart (renders as a single stat
+  readout, not a one-point line, until a second graded month exists),
+  NRFI frequency by season back to 2018, and pitcher/team leaderboards.
+
+Both pages are read-only against the same `/api/history/*` and
+`/api/analytics/*` endpoints M8 already built and tested — nothing new on
+the backend. If `/history/accuracy` or `/analytics/models` looks
+suspiciously empty, it's because nothing's been graded yet — run
+`docker compose exec backend python -m app.grading.results` after some
+predicted games have finished.
+
 ### Tests
 
 ```bash
@@ -374,14 +396,16 @@ nrfi-analytics/
 │       └── routers/    games, history, analytics endpoints (M8)
 ├── frontend/           React + TypeScript + Tailwind (Vite)
 │   └── src/
-│       ├── App.tsx     Router (M9, M10)
+│       ├── App.tsx     Router (M9-M11)
 │       ├── main.tsx    Entrypoint
-│       ├── api/         Typed API client + types mirroring app/schemas (M9, M10)
+│       ├── api/         Typed API client + types mirroring app/schemas (M9-M11)
 │       ├── lib/          format.ts, gameStatus.ts — shared formatting/status helpers (M10)
-│       ├── pages/        Dashboard.tsx (M9), GameDetailPage.tsx (M10)
+│       ├── pages/        Dashboard.tsx (M9), GameDetailPage.tsx (M10),
+│       │                 HistoryPage.tsx, AnalyticsPage.tsx (M11)
 │       └── components/  GameCard, PredictionBadge, TeamLogo, WeatherSummary, FiltersBar (M9);
 │                         PitcherDetailCard, TeamStatsCard, OddsSummary, ExplanationList,
-│                         PredictionSummary (M10)
+│                         PredictionSummary (M10); NrfiFrequencyChart, AccuracyOverTimeChart,
+│                         Leaderboard, WinLossBadge (M11)
 ├── docs/               Planning documents (this is the source of truth)
 ├── docker-compose.yml  Postgres + backend + frontend, one command (+ opt-in scheduler)
 ├── .env.example        Required env vars, no real secrets

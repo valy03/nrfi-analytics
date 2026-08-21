@@ -117,3 +117,65 @@ export interface GameDetail {
   weather: Weather | null;
   odds: Odds | null;
 }
+
+// Mirrors backend/app/schemas/history.py.
+
+export interface PredictionHistoryItem {
+  game_pk: number;
+  game_date: string;
+  home_team: string;
+  away_team: string;
+  predicted_label: PredictedLabel;
+  actual_label: PredictedLabel | null;
+  correct: boolean | null;
+  confidence: number;
+  nrfi_probability: number;
+  model_name: string;
+  model_version: string;
+}
+
+export interface AccuracyBucket {
+  period: string;
+  total: number;
+  correct: number;
+  accuracy: number | null;
+  win_rate: number | null;
+  roi: number | null;
+}
+
+export interface AccuracyReport {
+  overall: AccuracyBucket;
+  monthly: AccuracyBucket[];
+  yearly: AccuracyBucket[];
+}
+
+// Mirrors backend/app/schemas/analytics.py.
+
+export interface NrfiFrequencyPoint {
+  period: string;
+  games: number;
+  nrfi_rate: number;
+}
+
+export interface PitcherLeaderboardEntry {
+  pitcher_id: number;
+  full_name: string;
+  starts: number;
+  nrfi_rate: number;
+  runs_1st_avg: number;
+}
+
+export interface TeamLeaderboardEntry {
+  team_id: number;
+  abbreviation: string;
+  games: number;
+  scored_1st_rate: number;
+}
+
+export interface ModelPerformanceEntry {
+  model_name: string;
+  model_version: string;
+  total: number;
+  correct: number;
+  accuracy: number;
+}

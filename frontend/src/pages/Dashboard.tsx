@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { ApiError, getGames } from "../api/client";
 import type { GameSummary } from "../api/types";
 import { DEFAULT_FILTERS, FiltersBar, type Filters } from "../components/FiltersBar";
@@ -68,11 +69,21 @@ export function Dashboard() {
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-8">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Today's Games</h1>
-        <p className="text-sm text-slate-500">
-          NRFI/YRFI predictions for every MLB game today.
-        </p>
+      <header className="mb-6 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Today's Games</h1>
+          <p className="text-sm text-slate-500">
+            NRFI/YRFI predictions for every MLB game today.
+          </p>
+        </div>
+        <nav className="flex shrink-0 gap-4 pt-1 text-sm text-teal-600">
+          <Link to="/history" className="hover:text-teal-700">
+            History
+          </Link>
+          <Link to="/analytics" className="hover:text-teal-700">
+            Analytics
+          </Link>
+        </nav>
       </header>
 
       <div className="mb-6">

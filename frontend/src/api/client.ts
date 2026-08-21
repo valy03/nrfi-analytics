@@ -1,4 +1,14 @@
-import type { GameDetail, GameSummary, PredictedLabel } from "./types";
+import type {
+  AccuracyReport,
+  GameDetail,
+  GameSummary,
+  ModelPerformanceEntry,
+  NrfiFrequencyPoint,
+  PitcherLeaderboardEntry,
+  PredictedLabel,
+  PredictionHistoryItem,
+  TeamLeaderboardEntry,
+} from "./types";
 
 const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -10,6 +20,14 @@ export class ApiError extends Error {
     this.name = "ApiError";
     this.status = status;
   }
+}
+
+async function fetchJson<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const response = await fetch(`${API_URL}${path}`, { signal });
+  if (!response.ok) {
+    throw new ApiError(`Request to ${path} failed (${response.status})`, response.status);
+  }
+  return response.json();
 }
 
 export interface GamesQuery {
@@ -56,4 +74,56 @@ export async function getGameDetail(
     throw new ApiError(`Failed to load game ${gamePk} (${response.status})`, response.status);
   }
   return response.json();
+}
+
+export interface PredictionHistoryQuery {
+  startDate?: string;
+  endDate?: string;
+  team?: string;
+  modelVersion?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export async function getPredictionHistory(
+  query: PredictionHistoryQuery = {},
+  signal?: AbortSignal
+): Promise<PredictionHistoryItem[]> {
+  const params = new URLSearchParams();
+  if (query.startDate) params.set("start_date", query.startDate);
+  if (query.endDate) params.set("end_date", query.endDate);
+  if (query.team) params.set("team", query.team);
+  if (query.modelVersion) params.set("model_version", query.modelVersion);
+  if (query.limit !== undefined) params.set("limit", String(query.limit));
+  if (query.offset !== undefined) params.set("offset", String(query.offset));
+  const qs = params.size ? `?${params}` : "";
+  return fetchJson<PredictionHistoryItem[]>(`/api/history/predictions${qs}`, signal);
+}
+
+export async function getAccuracyReport(
+  modelVersion?: string,
+  signal?: AbortSignal
+): Promise<AccuracyReport> {
+  const qs = modelVersion ? `?model_version=${encodeURIComponent(modelVersion)}` : "";
+  return fetchJson<AccuracyReport>(`/api/history/accuracy${qs}`, signal);
+}
+
+export async function getNrfiFrequency(signal?: AbortSignal): Promise<NrfiFrequencyPoint[]> {
+  return fetchJson<NrfiFrequencyPoint[]>("/api/analytics/nrfi-frequency", signal);
+}
+
+export async function getPitcherLeaderboard(
+  signal?: AbortSignal
+): Promise<PitcherLeaderboardEntry[]> {
+  return fetchJson<PitcherLeaderboardEntry[]>("/api/analytics/pitchers", signal);
+}
+
+export async function getTeamLeaderboard(signal?: AbortSignal): Promise<TeamLeaderboardEntry[]> {
+  return fetchJson<TeamLeaderboardEntry[]>("/api/analytics/teams", signal);
+}
+
+export async function getModelPerformance(
+  signal?: AbortSignal
+): Promise<ModelPerformanceEntry[]> {
+  return fetchJson<ModelPerformanceEntry[]>("/api/analytics/models", signal);
 }

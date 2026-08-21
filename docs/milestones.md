@@ -836,7 +836,56 @@ frontend rendering task.
 
 # M11 — Historical Results & Analytics
 
-**Status:** Not Started
+**Status:** Done (2026-08-21) — built to milestones.md's literal deliverable
+list, against the M8 `/api/history/*` and `/api/analytics/*` endpoints,
+which already existed and were already tested — no backend changes.
+
+`/history`: a results table (date, game, predicted label, confidence,
+actual label, win/loss) plus overall accuracy/win-rate/graded-count stat
+tiles, filterable by date range and team (both server-side, matching the
+existing query params) and by prediction type (client-side, over the
+loaded page — the API has no such filter param, and adding one was out of
+this pass's scope). `/analytics`: an accuracy-over-time line chart, an
+NRFI-frequency-by-season bar chart, and pitcher/team leaderboards (a table
+with an inline bar per row, which is inherently its own accessible data
+view rather than a separate chart needing one bolted on).
+
+**A real wireframes.md gap surfaced first.** `docs/wireframes.md` — the
+actual page-by-page spec, which should have been read before M9 started —
+describes a materially different product than what M9/M10 built: a
+homepage led by a ranked "Today's Best NRFI Opportunities" section and
+summary cards (M9 shipped a flat filterable list instead), a persistent
+Dashboard/History/Analytics/About nav bar (none exists), an Analytics page
+with best *and worst* leaderboards, a "Highest Confidence Picks" ranking,
+and a **Model Metrics** section (Accuracy/Precision/Recall/ROC AUC/Log
+Loss sourced from the M5/M6 training-time evaluation — no endpoint exposes
+it), and a whole About page owned by no milestone at all. Surfaced to the
+user directly; the decision was to build M11 narrowly per milestones.md's
+own deliverable list and log the rest as backlog, the same pattern M8.5
+established for research.md's weather/odds gap. None of it is fixed here.
+
+**Chart work went through the dataviz skill.** All four charts/leaderboards
+are single-series magnitude-or-trend forms (NRFI rate by season, accuracy
+by month, a ranked stat per pitcher/team) — no categorical palette needed,
+so the skill's CVD-pairwise validator doesn't apply here; what does apply
+is one sequential hue (this app's existing teal, not the skill's generic
+blue default — swapping in an unrelated brand palette for one milestone
+would have fought the rest of the app's established look), proper marks
+(≤24px bars, 4px rounded data-ends, 2px lines, hairline gridlines), and a
+real hover layer on every mark. The accuracy-over-time chart also follows
+the skill's own "is it even a chart?" guidance literally: with only one
+graded month of data so far, it renders as a stat readout instead of a
+one-point line chart, and will become a real line automatically once a
+second month's worth of grades land.
+
+**Real data, not a fixture, verified before building against it.** The
+`predictions`/`prediction_results` tables were nearly empty (M7 had only
+ever predicted future slates) — `history/accuracy` and `analytics/models`
+came back as zero rows. Refreshed 2026-08-18 through 2026-08-20 via
+`app.ingestion.daily` (picks up now-final scores) and ran
+`app.grading.results`, which graded 22 predictions (59.1% accuracy) —
+real signal to build and verify the UI against instead of an empty state
+nobody would ever actually see in production.
 
 **Goal:** Model accountability is visible — past predictions vs. actual
 outcomes, and analytics charts.
@@ -879,6 +928,36 @@ criteria in planning.md.
 
 ---
 
+# Known gaps vs. wireframes.md
+
+Surfaced during M11 (2026-08-21): `docs/wireframes.md` — the actual
+page-by-page UI spec — describes more than M9-M11 built, and these items
+are still MVP scope per that document's own "MVP Screens" list, not
+stretch features. Logged here rather than fixed in-pass, per the decision
+made when the gap was found (M11 stayed narrow, matching milestones.md's
+literal deliverables).
+
+- **Dashboard (M9)**: no "Today's Best NRFI Opportunities" ranked top-picks
+  section, no summary cards (Games Today / Model Accuracy / Season Record /
+  ROI), no "Last Updated" timestamp. What shipped is the wireframe's
+  secondary "All Today's Games" section as the whole page.
+- **No persistent navigation** (`Dashboard · History · Analytics · About`)
+  anywhere — pages are reachable only by direct link (Dashboard header
+  links to History/Analytics; a "back" link on the other three).
+- **Analytics (M11)**: only "best" pitcher/team leaderboards, not best
+  *and* worst; no "Highest Confidence Picks" ranking; no **Model Metrics**
+  section (Accuracy/Precision/Recall/ROC AUC/Log Loss) — that data exists
+  in `data/models/champion_metrics.json` from M5/M6 but no API endpoint
+  serves it yet.
+- **No About page** — isn't owned by any milestone M0-M12, the same kind
+  of sequencing gap M8.5 found for weather/odds.
+- **Game Details (M10) odds**: wireframe wants Game Total / NRFI Odds /
+  YRFI Odds alongside moneyline — not a build gap, a real data-availability
+  limit: The Odds API's free tier (research.md's documented choice) only
+  returns moneyline (h2h).
+
+---
+
 # Stretch Milestones (post-MVP)
 
 Not sequenced yet — pull from planning.md's Stretch Features list once MVP
@@ -909,5 +988,5 @@ Not sequenced yet — pull from planning.md's Stretch Features list once MVP
 | M8.5 | Weather & Odds Collection | M7, M8 | Done |
 | M9 | Dashboard: Today's Games | M8 | Done |
 | M10 | Dashboard: Game Details | M9 | Done |
-| M11 | Historical Results & Analytics | M7, M8 | Not Started |
+| M11 | Historical Results & Analytics | M7, M8 | Done |
 | M12 | Deployment | M9, M10, M11 | Not Started |
