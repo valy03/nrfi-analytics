@@ -29,10 +29,8 @@ type LoadState =
 
 function Card({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
-        {title}
-      </div>
+    <div className="rounded-2xl border border-border bg-card p-6">
+      <div className="mb-5 text-lg font-bold tracking-tight text-foreground">{title}</div>
       {children}
     </div>
   );
@@ -64,19 +62,26 @@ export function AnalyticsPage() {
   }, []);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Analytics</h1>
-        <p className="text-sm text-slate-500">
-          Prediction accuracy over time and league-wide NRFI trends, straight from the
-          predictions and box-score tables.
+    <div className="mx-auto max-w-6xl px-4 py-10 md:px-6 md:py-12">
+      <header className="mb-8">
+        <span className="font-mono text-xs uppercase tracking-[0.2em] text-primary">
+          Model Performance
+        </span>
+        <h1 className="mt-2 text-3xl font-bold tracking-tight text-balance md:text-4xl">
+          Analytics
+        </h1>
+        <p className="mt-3 max-w-2xl text-pretty leading-relaxed text-muted-foreground">
+          How the model behaves over time — its accuracy trend and league-wide NRFI
+          frequency, straight from the predictions and box-score tables.
         </p>
       </header>
 
-      {state.status === "loading" && <p className="text-center text-slate-400">Loading…</p>}
+      {state.status === "loading" && (
+        <p className="text-center text-muted-foreground">Loading…</p>
+      )}
 
       {state.status === "error" && (
-        <p className="rounded-lg bg-red-50 p-4 text-center text-sm text-red-600">
+        <p className="rounded-lg bg-destructive/10 p-4 text-center text-sm text-destructive">
           {state.message}
         </p>
       )}

@@ -1,9 +1,9 @@
 import { useState } from "react";
 import type { AccuracyBucket } from "../api/types";
 
-const LINE_COLOR = "#0d9488"; // teal-600 — same sequential hue as NrfiFrequencyChart
-const GRIDLINE = "#e1e0d9";
-const AXIS_TEXT = "#898781";
+const LINE_COLOR = "var(--primary)"; // same sequential hue as NrfiFrequencyChart
+const GRIDLINE = "var(--border)";
+const AXIS_TEXT = "var(--muted-foreground)";
 
 const WIDTH = 640;
 const HEIGHT = 220;
@@ -20,7 +20,7 @@ export function AccuracyOverTimeChart({ monthly }: AccuracyOverTimeChartProps) {
   const graded = monthly.filter((b) => b.accuracy != null);
 
   if (graded.length === 0) {
-    return <p className="text-sm text-slate-400">No graded predictions yet.</p>;
+    return <p className="text-sm text-muted-foreground">No graded predictions yet.</p>;
   }
 
   // A trend needs at least two points to mean anything — one point is a
@@ -31,10 +31,10 @@ export function AccuracyOverTimeChart({ monthly }: AccuracyOverTimeChartProps) {
     const only = graded[0];
     return (
       <div className="flex items-baseline gap-3">
-        <span className="text-3xl font-bold text-slate-900">
+        <span className="font-mono text-3xl font-bold text-foreground">
           {(only.accuracy! * 100).toFixed(1)}%
         </span>
-        <span className="text-sm text-slate-500">
+        <span className="text-sm text-muted-foreground">
           {only.period} · {only.correct}/{only.total} correct
         </span>
       </div>
@@ -104,7 +104,7 @@ export function AccuracyOverTimeChart({ monthly }: AccuracyOverTimeChartProps) {
                 cy={yFor(b.accuracy!)}
                 r={4}
                 fill={LINE_COLOR}
-                stroke="#fcfcfb"
+                stroke="var(--card)"
                 strokeWidth={2}
               />
               <circle
@@ -135,9 +135,9 @@ export function AccuracyOverTimeChart({ monthly }: AccuracyOverTimeChartProps) {
       </svg>
 
       {hovered !== null && (
-        <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs shadow-md">
-          <div className="font-semibold text-slate-900">{graded[hovered].period}</div>
-          <div className="text-slate-500">
+        <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs shadow-md">
+          <div className="font-semibold text-foreground">{graded[hovered].period}</div>
+          <div className="text-muted-foreground">
             {(graded[hovered].accuracy! * 100).toFixed(1)}% · {graded[hovered].correct}/
             {graded[hovered].total} correct
           </div>

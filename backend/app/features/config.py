@@ -29,7 +29,16 @@ from __future__ import annotations
 # than the outcome it predicts.
 #
 # k is in the units named on each line.
-PITCHER_NRFI_K = 182.0    # starts
+PITCHER_NRFI_K = 182.0    # starts (career/season samples)
+# Fit separately from PITCHER_NRFI_K: that constant was measured against
+# each pitcher's full career rate, then reused as-is for the 5-start
+# "recent form" window below — a borrowed hyperparameter, not a measured
+# one. Measuring it directly (app.features.shrinkage.estimate_recent_k)
+# gives 169, barely different from the borrowed 182: a pitcher's last 5
+# starts genuinely don't carry much more signal than 5-sample binomial
+# noise would produce on their own. Kept as its own constant so the value
+# is justified by its own fit rather than coincidence.
+PITCHER_NRFI_RECENT_K = 169.0  # last-5-start samples
 PITCHER_RUNS_K = 160.0    # starts
 PITCHER_WHIP_K = 94.0     # starts
 PITCHER_K_RATE_K = 86.0   # batters faced  (≈ the known ~70 PA K% stabilization)

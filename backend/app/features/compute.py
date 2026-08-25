@@ -354,7 +354,7 @@ def _pitcher_features(
             by_recent["nrfi_start"],
             by_recent[_COUNT],
             league["sp_nrfi"],
-            cfg.PITCHER_NRFI_K,
+            cfg.PITCHER_NRFI_RECENT_K,
         )
         out[f"{side}_sp_runs_1st_avg"] = _shrink(
             by_career["runs_1st"], n, league["sp_runs"], cfg.PITCHER_RUNS_K

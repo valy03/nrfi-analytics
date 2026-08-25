@@ -1,9 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  ApiError,
-  getAccuracyReport,
-  getPredictionHistory,
-} from "../api/client";
+import { ApiError, getAccuracyReport, getPredictionHistory } from "../api/client";
 import type { AccuracyReport, PredictedLabel, PredictionHistoryItem } from "../api/types";
 import { StatTile } from "../components/StatTile";
 import { WinLossBadge } from "../components/WinLossBadge";
@@ -23,6 +19,7 @@ interface Filters {
 }
 
 const DEFAULT_FILTERS: Filters = { startDate: "", endDate: "", team: "", prediction: "ALL" };
+const PREDICTION_TABS: (PredictedLabel | "ALL")[] = ["ALL", "NRFI", "YRFI"];
 
 function formatPct(value: number | null): string {
   return value == null ? "—" : `${(value * 100).toFixed(1)}%`;
@@ -90,11 +87,17 @@ export function HistoryPage() {
   }, [state, filters.prediction]);
 
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Historical Results</h1>
-        <p className="text-sm text-slate-500">
-          Every prediction the model has made, graded against what actually happened.
+    <div className="mx-auto max-w-5xl px-4 py-8 md:px-6 md:py-10">
+      <header className="mb-8">
+        <span className="font-mono text-xs uppercase tracking-[0.2em] text-primary">
+          Track Record
+        </span>
+        <h1 className="mt-2 text-3xl font-bold tracking-tight text-balance md:text-4xl">
+          Historical Results
+        </h1>
+        <p className="mt-3 max-w-2xl text-pretty leading-relaxed text-muted-foreground">
+          Every graded prediction, kept public and honest. We publish losses alongside wins —
+          transparency only counts when it includes the misses.
         </p>
       </header>
 
@@ -110,23 +113,38 @@ export function HistoryPage() {
         </div>
       )}
 
-      <div className="mb-6 flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-        <label className="flex items-center gap-2 text-sm text-slate-600">
+      <div className="mb-6 flex flex-wrap items-center gap-3 rounded-xl border border-border bg-card p-4">
+        <div className="flex gap-1 rounded-lg bg-secondary p-1">
+          {PREDICTION_TABS.map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setFilters({ ...filters, prediction: tab })}
+              className={`rounded-md px-3 py-1 text-sm font-medium transition ${
+                filters.prediction === tab
+                  ? "bg-card text-foreground shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {tab === "ALL" ? "All" : tab}
+            </button>
+          ))}
+        </div>
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
           From
           <input
             type="date"
             value={filters.startDate}
             onChange={(e) => setFilters({ ...filters, startDate: e.target.value })}
-            className="rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            className="rounded-md border border-border bg-card px-2 py-1 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </label>
-        <label className="flex items-center gap-2 text-sm text-slate-600">
+        <label className="flex items-center gap-2 text-sm text-muted-foreground">
           To
           <input
             type="date"
             value={filters.endDate}
             onChange={(e) => setFilters({ ...filters, endDate: e.target.value })}
-            className="rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+            className="rounded-md border border-border bg-card px-2 py-1 text-sm text-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
           />
         </label>
         <input
@@ -134,38 +152,29 @@ export function HistoryPage() {
           placeholder="Search teams…"
           value={filters.team}
           onChange={(e) => setFilters({ ...filters, team: e.target.value })}
-          className="min-w-[140px] flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm placeholder:text-slate-400 focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
+          className="min-w-[140px] flex-1 rounded-md border border-border bg-card px-3 py-1.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
         />
-        <select
-          value={filters.prediction}
-          onChange={(e) =>
-            setFilters({ ...filters, prediction: e.target.value as Filters["prediction"] })
-          }
-          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:border-teal-500 focus:outline-none focus:ring-1 focus:ring-teal-500"
-        >
-          <option value="ALL">All predictions</option>
-          <option value="NRFI">NRFI only</option>
-          <option value="YRFI">YRFI only</option>
-        </select>
       </div>
 
-      {state.status === "loading" && <p className="text-center text-slate-400">Loading…</p>}
+      {state.status === "loading" && <p className="text-center text-muted-foreground">Loading…</p>}
 
       {state.status === "error" && (
-        <p className="rounded-lg bg-red-50 p-4 text-center text-sm text-red-600">
+        <p className="rounded-lg bg-destructive/10 p-4 text-center text-sm text-destructive">
           {state.message}
         </p>
       )}
 
       {state.status === "ready" && visibleItems.length === 0 && (
-        <p className="text-center text-slate-400">No predictions match the current filters.</p>
+        <p className="text-center text-muted-foreground">
+          No predictions match the current filters.
+        </p>
       )}
 
       {state.status === "ready" && visibleItems.length > 0 && (
-        <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+        <div className="overflow-x-auto rounded-xl border border-border bg-card">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100 text-left text-xs text-slate-400">
+              <tr className="border-b border-border text-left text-xs text-muted-foreground">
                 <th className="px-4 py-2 font-medium">Date</th>
                 <th className="px-4 py-2 font-medium">Game</th>
                 <th className="px-4 py-2 font-medium">Prediction</th>
@@ -176,16 +185,19 @@ export function HistoryPage() {
             </thead>
             <tbody>
               {visibleItems.map((item) => (
-                <tr key={`${item.game_pk}-${item.model_version}`} className="border-b border-slate-50 last:border-0">
-                  <td className="px-4 py-2 text-slate-600">{item.game_date}</td>
-                  <td className="px-4 py-2 text-slate-900">
+                <tr
+                  key={`${item.game_pk}-${item.model_version}`}
+                  className="border-b border-border last:border-0"
+                >
+                  <td className="px-4 py-2 font-mono text-muted-foreground">{item.game_date}</td>
+                  <td className="px-4 py-2 font-medium text-foreground">
                     {item.away_team} @ {item.home_team}
                   </td>
-                  <td className="px-4 py-2 text-slate-600">{item.predicted_label}</td>
-                  <td className="px-4 py-2 tabular-nums text-slate-600">
+                  <td className="px-4 py-2 text-muted-foreground">{item.predicted_label}</td>
+                  <td className="px-4 py-2 font-mono tabular-nums text-muted-foreground">
                     {(item.confidence * 100).toFixed(1)}%
                   </td>
-                  <td className="px-4 py-2 text-slate-600">{item.actual_label ?? "—"}</td>
+                  <td className="px-4 py-2 text-muted-foreground">{item.actual_label ?? "—"}</td>
                   <td className="px-4 py-2">
                     <WinLossBadge correct={item.correct} />
                   </td>
@@ -200,7 +212,7 @@ export function HistoryPage() {
         <div className="mt-4 text-center">
           <button
             onClick={loadMore}
-            className="rounded-md border border-slate-300 px-4 py-1.5 text-sm text-slate-600 hover:bg-slate-50"
+            className="rounded-md border border-border px-4 py-1.5 text-sm text-muted-foreground hover:bg-secondary"
           >
             Load more
           </button>

@@ -80,3 +80,24 @@ def test_accuracy_endpoint_with_no_data_yet(client, session):
         "win_rate": None,
         "roi": None,
     }
+
+
+def test_top_picks_accuracy_endpoint(client, session):
+    _graded_prediction(session)
+
+    response = client.get("/api/history/top-picks-accuracy?model_version=m5-v1")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["period"] == "top_3"
+    assert body["total"] == 1
+    assert body["correct"] == 1
+
+
+def test_top_picks_accuracy_endpoint_with_no_data_yet(client, session):
+    response = client.get("/api/history/top-picks-accuracy?model_version=m5-v1")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 0
+    assert body["accuracy"] is None

@@ -1,13 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import { ApiError, getAccuracyReport, getGameDetail, getGames } from "../api/client";
-import type { AccuracyReport, GameSummary } from "../api/types";
+import {
+  ApiError,
+  getAccuracyReport,
+  getGameDetail,
+  getGames,
+  getTopPicksAccuracy,
+} from "../api/client";
+import type { AccuracyBucket, AccuracyReport, GameSummary } from "../api/types";
 import { DEFAULT_FILTERS, FiltersBar, type Filters } from "../components/FiltersBar";
 import { GameCard } from "../components/GameCard";
 import { StatTile } from "../components/StatTile";
 import { TopPicks, type TopPick } from "../components/TopPicks";
 import { formatPct, formatRelativeTime } from "../lib/format";
 
-const TOP_PICKS_COUNT = 5;
+const TOP_PICKS_COUNT = 3;
 
 type GamesState =
   | { status: "loading" }
@@ -47,6 +53,7 @@ function applyFilters(games: GameSummary[], filters: Filters): GameSummary[] {
 export function Dashboard() {
   const [gamesState, setGamesState] = useState<GamesState>({ status: "loading" });
   const [accuracy, setAccuracy] = useState<AccuracyReport | null>(null);
+  const [topPicksAccuracy, setTopPicksAccuracy] = useState<AccuracyBucket | null>(null);
   const [topPicks, setTopPicks] = useState<TopPick[]>([]);
   const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
 
@@ -69,6 +76,10 @@ export function Dashboard() {
     // not worth failing the whole page over.
     getAccuracyReport(undefined, controller.signal)
       .then(setAccuracy)
+      .catch(() => {});
+
+    getTopPicksAccuracy(TOP_PICKS_COUNT, undefined, controller.signal)
+      .then(setTopPicksAccuracy)
       .catch(() => {});
 
     return () => controller.abort();
@@ -124,70 +135,149 @@ export function Dashboard() {
     return accuracy.yearly.find((y) => y.period === currentYear) ?? accuracy.overall;
   }, [accuracy]);
 
+  // Label the hero with the slate's own date (from the backend's
+  // mlb_today(), US Eastern), not the browser's local clock — those two
+  // can disagree by a full calendar day for a few hours each evening
+  // Pacific time, which would otherwise show a date that doesn't match
+  // the games actually on screen.
+  const today = useMemo(() => {
+    const gameDate = gamesState.status === "ready" ? gamesState.games[0]?.game_date : undefined;
+    if (!gameDate) {
+      return new Date().toLocaleDateString(undefined, { month: "long", day: "numeric" });
+    }
+    const [year, month, day] = gameDate.split("-").map(Number);
+    return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+      month: "long",
+      day: "numeric",
+    });
+  }, [gamesState]);
+
   return (
-    <div className="mx-auto max-w-5xl px-4 py-8">
-      <header className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Today's Best NRFI Opportunities</h1>
-        <p className="text-sm text-slate-500">
-          {lastUpdated
-            ? `Predictions last updated ${formatRelativeTime(lastUpdated)}`
-            : "NRFI/YRFI predictions for every MLB game today"}
-        </p>
-      </header>
+    <div>
+      {/* Hero */}
+      <section className="bg-chalk border-b border-border">
+        <div className="mx-auto max-w-6xl px-4 py-10 md:px-6 md:py-14">
+          <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+            <div className="max-w-xl">
+              <span className="font-mono text-xs uppercase tracking-[0.2em] text-primary">
+                Today · {today}
+              </span>
+              <h1 className="mt-3 text-3xl font-bold tracking-tight text-balance md:text-4xl">
+                No Run First Inning, explained.
+              </h1>
+              <p className="mt-3 text-pretty leading-relaxed text-muted-foreground">
+                Transparent, data-driven NRFI predictions for every MLB game — with the exact
+                factors behind each call, not just a confidence score.
+              </p>
+              {lastUpdated && (
+                <p className="mt-2 font-mono text-xs text-muted-foreground">
+                  Predictions last updated {formatRelativeTime(lastUpdated)}
+                </p>
+              )}
+            </div>
+            {gamesState.status === "ready" && (
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-5 md:flex">
+                <StatTile label="Games Today" value={String(gamesState.games.length)} />
+                <StatTile
+                  label="Model Accuracy"
+                  value={formatPct(accuracy?.overall.accuracy ?? null)}
+                />
+                <StatTile
+                  label="Season Record"
+                  value={
+                    seasonRecord
+                      ? `${seasonRecord.correct}-${seasonRecord.total - seasonRecord.correct}`
+                      : "—"
+                  }
+                />
+                <StatTile
+                  label="Top 3 Plays Record"
+                  value={
+                    topPicksAccuracy && topPicksAccuracy.total > 0
+                      ? `${topPicksAccuracy.correct}-${topPicksAccuracy.total - topPicksAccuracy.correct}`
+                      : "—"
+                  }
+                />
+                <StatTile label="ROI" value="—" />
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
 
-      <div className="mb-8">
-        <TopPicks picks={topPicks} />
+      <div className="mx-auto max-w-6xl px-4 py-10 md:px-6 md:py-12">
+        {/* Top Picks */}
+        <section>
+          <div className="mb-5 flex items-center justify-between">
+            <h2 className="text-xl font-bold tracking-tight">Top Picks</h2>
+            <span className="font-mono text-xs uppercase tracking-wide text-muted-foreground">
+              Highest confidence
+            </span>
+          </div>
+          <TopPicks picks={topPicks} />
+        </section>
+
+        {/* Full slate */}
+        <section className="mt-14">
+          <div className="mb-5 flex items-center justify-between">
+            <h2 className="text-xl font-bold tracking-tight">Full Slate</h2>
+            {gamesState.status === "ready" && (
+              <span className="font-mono text-xs uppercase tracking-wide text-muted-foreground">
+                {gamesState.games.length} games
+              </span>
+            )}
+          </div>
+
+          <div className="mb-6">
+            <FiltersBar filters={filters} onChange={setFilters} />
+          </div>
+
+          {gamesState.status === "loading" && (
+            <p className="text-center text-muted-foreground">Loading today's slate…</p>
+          )}
+
+          {gamesState.status === "error" && (
+            <p className="rounded-lg bg-destructive/10 p-4 text-center text-sm text-destructive">
+              {gamesState.message}
+            </p>
+          )}
+
+          {gamesState.status === "ready" && gamesState.games.length === 0 && (
+            <p className="text-center text-muted-foreground">No MLB games scheduled today.</p>
+          )}
+
+          {gamesState.status === "ready" &&
+            gamesState.games.length > 0 &&
+            visibleGames.length === 0 && (
+              <p className="text-center text-muted-foreground">
+                No games match the current filters.
+              </p>
+            )}
+
+          {visibleGames.length > 0 && (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {visibleGames.map((game) => (
+                <GameCard key={game.game_pk} game={game} />
+              ))}
+            </div>
+          )}
+        </section>
       </div>
 
-      {gamesState.status === "ready" && (
-        <div className="mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <StatTile label="Games Today" value={String(gamesState.games.length)} />
-          <StatTile label="Model Accuracy" value={formatPct(accuracy?.overall.accuracy ?? null)} />
-          <StatTile
-            label="Season Record"
-            value={
-              seasonRecord
-                ? `${seasonRecord.correct}-${seasonRecord.total - seasonRecord.correct}`
-                : "—"
-            }
-          />
-          <StatTile label="ROI" value="—" />
+      <footer className="border-t border-border">
+        <div className="mx-auto max-w-6xl px-4 py-6 md:px-6">
+          <div className="flex flex-col gap-2 font-mono text-xs uppercase tracking-wide text-muted-foreground md:flex-row md:items-center md:justify-between">
+            <span>NRFI Analytics — for informational purposes only</span>
+            <span>Model outputs are estimates, not guarantees. Not betting advice.</span>
+          </div>
+          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+            21+ · For entertainment only. NRFI Analytics is an independent product and is
+            not affiliated with, endorsed by, or sponsored by Major League Baseball. Team
+            names and logos are the property of their respective owners and appear here
+            only to identify the teams in publicly available game data.
+          </p>
         </div>
-      )}
-
-      <h2 className="mb-4 text-lg font-semibold text-slate-900">All Today's Games</h2>
-
-      <div className="mb-6">
-        <FiltersBar filters={filters} onChange={setFilters} />
-      </div>
-
-      {gamesState.status === "loading" && (
-        <p className="text-center text-slate-400">Loading today's slate…</p>
-      )}
-
-      {gamesState.status === "error" && (
-        <p className="rounded-lg bg-red-50 p-4 text-center text-sm text-red-600">
-          {gamesState.message}
-        </p>
-      )}
-
-      {gamesState.status === "ready" && gamesState.games.length === 0 && (
-        <p className="text-center text-slate-400">No MLB games scheduled today.</p>
-      )}
-
-      {gamesState.status === "ready" &&
-        gamesState.games.length > 0 &&
-        visibleGames.length === 0 && (
-          <p className="text-center text-slate-400">No games match the current filters.</p>
-        )}
-
-      {visibleGames.length > 0 && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {visibleGames.map((game) => (
-            <GameCard key={game.game_pk} game={game} />
-          ))}
-        </div>
-      )}
+      </footer>
     </div>
   );
 }

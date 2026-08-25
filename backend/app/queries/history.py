@@ -18,6 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Game, Prediction, PredictionResult, Team
+from app.prediction.infer import ChampionNotFoundError, champion_identity
 from app.schemas.history import AccuracyBucket, AccuracyReport, PredictionHistoryItem
 
 
@@ -117,3 +118,46 @@ def accuracy_report(session: Session, model_version: str | None = None) -> Accur
         monthly=[_bucket(k, v) for k, v in sorted(by_month.items())],
         yearly=[_bucket(k, v) for k, v in sorted(by_year.items())],
     )
+
+
+def top_picks_accuracy(
+    session: Session, top_n: int = 3, model_version: str | None = None
+) -> AccuracyBucket:
+    """Accuracy of the top-N highest-confidence picks *per day*, historically.
+
+    There's no stored "was this a top pick" flag — this re-derives it: for
+    every date the given model version predicted, rank that date's
+    predictions by confidence and keep the top ``top_n``, then aggregate
+    accuracy over the graded subset. That's the exact same selection the
+    dashboard's "Top Picks" section makes for *today*, just evaluated across
+    every past day instead of one — so this number and today's Top Picks
+    list are always describing the same rule.
+
+    Defaults to the current champion's version, matching what the dashboard
+    actually predicts with today. A day with fewer than ``top_n`` picks
+    (e.g. only 1-2 games had confirmed starters) contributes all of them —
+    there's no such thing as a 4th-highest pick to exclude.
+    """
+    if model_version is None:
+        try:
+            _, model_version = champion_identity()
+        except ChampionNotFoundError:
+            return _bucket(f"top_{top_n}", [])
+
+    rows = session.execute(
+        select(Game.game_date, Prediction.confidence, PredictionResult.correct)
+        .join(Prediction, Prediction.id == PredictionResult.prediction_id)
+        .join(Game, Game.game_pk == Prediction.game_pk)
+        .where(Prediction.model_version == model_version)
+    ).all()
+
+    by_date: dict[dt.date, list[tuple[float, bool]]] = defaultdict(list)
+    for game_date, confidence, correct in rows:
+        by_date[game_date].append((confidence, bool(correct)))
+
+    outcomes: list[bool] = []
+    for entries in by_date.values():
+        entries.sort(key=lambda e: e[0], reverse=True)
+        outcomes.extend(correct for _, correct in entries[:top_n])
+
+    return _bucket(f"top_{top_n}", outcomes)

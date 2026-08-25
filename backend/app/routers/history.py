@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.queries import history as history_queries
-from app.schemas.history import AccuracyReport, PredictionHistoryItem
+from app.schemas.history import AccuracyBucket, AccuracyReport, PredictionHistoryItem
 
 router = APIRouter(prefix="/history", tags=["history"])
 
@@ -40,3 +40,12 @@ def get_accuracy(
     model_version: str | None = None, db: Session = Depends(get_db)
 ) -> AccuracyReport:
     return history_queries.accuracy_report(db, model_version=model_version)
+
+
+@router.get("/top-picks-accuracy", response_model=AccuracyBucket)
+def get_top_picks_accuracy(
+    top_n: int = Query(3, ge=1, le=10),
+    model_version: str | None = None,
+    db: Session = Depends(get_db),
+) -> AccuracyBucket:
+    return history_queries.top_picks_accuracy(db, top_n=top_n, model_version=model_version)

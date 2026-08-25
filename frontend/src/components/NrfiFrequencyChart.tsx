@@ -1,12 +1,13 @@
 import { useState } from "react";
 import type { NrfiFrequencyPoint } from "../api/types";
 
-// Single sequential hue (this app's teal accent) — one series, no legend
-// needed. Ink stays on text tokens; only the bars carry the series color.
-const BAR_COLOR = "#0d9488"; // Tailwind teal-600
-const BAR_COLOR_HOVER = "#0f766e"; // teal-700
-const GRIDLINE = "#e1e0d9";
-const AXIS_TEXT = "#898781";
+// Single sequential hue (this app's primary theme color) — one series, no
+// legend needed. Ink stays on text tokens; only the bars carry the series
+// color.
+const BAR_COLOR = "var(--primary)";
+const BAR_COLOR_HOVER = "#15803d"; // green-700 — a step darker than --primary for hover
+const GRIDLINE = "var(--border)";
+const AXIS_TEXT = "var(--muted-foreground)";
 
 const WIDTH = 640;
 const HEIGHT = 220;
@@ -29,7 +30,7 @@ export function NrfiFrequencyChart({ data }: NrfiFrequencyChartProps) {
   const [hovered, setHovered] = useState<number | null>(null);
 
   if (data.length === 0) {
-    return <p className="text-sm text-slate-400">No labeled games yet.</p>;
+    return <p className="text-sm text-muted-foreground">No labeled games yet.</p>;
   }
 
   const plotWidth = WIDTH - MARGIN.left - MARGIN.right;
@@ -112,9 +113,9 @@ export function NrfiFrequencyChart({ data }: NrfiFrequencyChartProps) {
       </svg>
 
       {hovered !== null && (
-        <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs shadow-md">
-          <div className="font-semibold text-slate-900">{data[hovered].period}</div>
-          <div className="text-slate-500">
+        <div className="pointer-events-none absolute left-1/2 top-0 -translate-x-1/2 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs shadow-md">
+          <div className="font-semibold text-foreground">{data[hovered].period}</div>
+          <div className="text-muted-foreground">
             {(data[hovered].nrfi_rate * 100).toFixed(1)}% NRFI · {data[hovered].games} games
           </div>
         </div>

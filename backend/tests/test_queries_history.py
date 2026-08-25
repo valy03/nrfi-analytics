@@ -5,9 +5,15 @@ import datetime as dt
 import pytest
 
 from app.models import Game, Prediction, PredictionResult, Team
+from app.prediction.infer import ChampionNotFoundError
 from app.queries import history as history_queries
 
 HOME_TEAM, AWAY_TEAM = 111, 147
+
+
+@pytest.fixture
+def champion(monkeypatch):
+    monkeypatch.setattr(history_queries, "champion_identity", lambda: ("logreg", "m5-v1"))
 
 
 def _teams(session):
@@ -35,7 +41,7 @@ def _game(session, game_pk, date, nrfi=None):
     return game
 
 
-def _prediction(game_pk, model_version="m5-v1", label="NRFI"):
+def _prediction(game_pk, model_version="m5-v1", label="NRFI", confidence=0.2):
     p = 0.6 if label == "NRFI" else 0.4
     pred = Prediction(
         game_pk=game_pk,
@@ -44,7 +50,7 @@ def _prediction(game_pk, model_version="m5-v1", label="NRFI"):
         predicted_label=label,
         nrfi_probability=p,
         yrfi_probability=1 - p,
-        confidence=0.2,
+        confidence=confidence,
     )
     return pred
 
@@ -218,3 +224,104 @@ def test_accuracy_report_can_be_scoped_to_a_model_version(session):
 
     assert report.overall.total == 1
     assert report.overall.correct == 1
+
+
+# --- top_picks_accuracy -----------------------------------------------------
+
+
+def test_top_picks_accuracy_keeps_only_the_top_n_per_day_by_confidence(session):
+    _teams(session)
+    date = dt.date(2026, 7, 15)
+    # Three graded predictions on the same day: ranked by confidence, only
+    # the top 2 should count toward a top_n=2 report — the 3rd (lowest
+    # confidence) is correct but must be excluded.
+    high = _prediction(1, confidence=0.9)
+    mid = _prediction(2, confidence=0.5)
+    low = _prediction(3, confidence=0.1)
+    for pk in (1, 2, 3):
+        _game(session, pk, date, nrfi=True)
+    session.add_all([high, mid, low])
+    _grade(session, high, "YRFI")  # wrong, but in the top 2
+    _grade(session, mid, "NRFI")  # correct, in the top 2
+    _grade(session, low, "NRFI")  # correct, but excluded (3rd by confidence)
+
+    bucket = history_queries.top_picks_accuracy(session, top_n=2, model_version="m5-v1")
+
+    assert bucket.total == 2
+    assert bucket.correct == 1
+    assert bucket.accuracy == pytest.approx(0.5)
+
+
+def test_top_picks_accuracy_ranks_independently_per_day(session):
+    _teams(session)
+    day1, day2 = dt.date(2026, 7, 15), dt.date(2026, 7, 16)
+    p1 = _prediction(1, confidence=0.9)
+    p2 = _prediction(2, confidence=0.9)
+    _game(session, 1, day1, nrfi=True)
+    _game(session, 2, day2, nrfi=True)
+    session.add_all([p1, p2])
+    _grade(session, p1, "NRFI")
+    _grade(session, p2, "NRFI")
+
+    bucket = history_queries.top_picks_accuracy(session, top_n=1, model_version="m5-v1")
+
+    # Each day only had one prediction, so top_n=1 keeps both.
+    assert bucket.total == 2
+    assert bucket.correct == 2
+
+
+def test_top_picks_accuracy_ignores_other_model_versions(session):
+    _teams(session)
+    date = dt.date(2026, 7, 15)
+    keep = _prediction(1, model_version="m6-xgb-v1", confidence=0.9)
+    drop = _prediction(2, model_version="m5-v1", confidence=0.9)
+    _game(session, 1, date, nrfi=True)
+    _game(session, 2, date, nrfi=False)
+    session.add_all([keep, drop])
+    _grade(session, keep, "NRFI")
+    _grade(session, drop, "NRFI")
+
+    bucket = history_queries.top_picks_accuracy(
+        session, top_n=3, model_version="m6-xgb-v1"
+    )
+
+    assert bucket.total == 1
+    assert bucket.correct == 1
+
+
+def test_top_picks_accuracy_is_empty_when_nothing_is_graded(session, champion):
+    bucket = history_queries.top_picks_accuracy(session, top_n=3)
+
+    assert bucket.total == 0
+    assert bucket.accuracy is None
+    assert bucket.period == "top_3"
+
+
+def test_top_picks_accuracy_defaults_to_the_champion_version(session, champion):
+    _teams(session)
+    date = dt.date(2026, 7, 15)
+    matches = _prediction(1, model_version="m5-v1", confidence=0.9)
+    other = _prediction(2, model_version="m6-xgb-v1", confidence=0.9)
+    _game(session, 1, date, nrfi=True)
+    _game(session, 2, date, nrfi=True)
+    session.add_all([matches, other])
+    _grade(session, matches, "NRFI")
+    _grade(session, other, "YRFI")
+
+    bucket = history_queries.top_picks_accuracy(session, top_n=3)
+
+    assert bucket.total == 1
+    assert bucket.correct == 1
+
+
+def test_top_picks_accuracy_is_empty_without_a_champion_match(session, monkeypatch):
+    monkeypatch.setattr(
+        history_queries,
+        "champion_identity",
+        lambda: (_ for _ in ()).throw(ChampionNotFoundError("no champion yet")),
+    )
+
+    bucket = history_queries.top_picks_accuracy(session, top_n=3)
+
+    assert bucket.total == 0
+    assert bucket.accuracy is None

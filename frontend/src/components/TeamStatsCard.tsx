@@ -9,8 +9,8 @@ interface StatRowProps {
 function StatRow({ label, value }: StatRowProps) {
   return (
     <div className="flex justify-between py-1 text-sm">
-      <span className="text-slate-500">{label}</span>
-      <span className="font-medium text-slate-900">{value}</span>
+      <span className="text-muted-foreground">{label}</span>
+      <span className="font-mono font-medium text-foreground">{value}</span>
     </div>
   );
 }
@@ -23,17 +23,20 @@ interface TeamStatsCardProps {
 
 export function TeamStatsCard({ team, stats, splitLabel }: TeamStatsCardProps) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="mb-1 font-mono text-xs uppercase tracking-wide text-muted-foreground">
         {team.abbreviation} Offense
       </div>
-      <h3 className="mb-3 text-lg font-semibold text-slate-900">{team.name}</h3>
+      <h3 className="mb-3 text-lg font-bold tracking-tight text-foreground">{team.name}</h3>
 
       {stats ? (
-        <div className="divide-y divide-slate-100">
+        <div className="divide-y divide-border">
           <StatRow label="1st Inning Runs/Game" value={formatStat(stats.runs_1st_avg)} />
           <StatRow label="Scored in 1st %" value={formatPct(stats.scored_1st_rate)} />
-          <StatRow label="Season Scored in 1st %" value={formatPct(stats.scored_1st_rate_season)} />
+          <StatRow
+            label="Season Scored in 1st %"
+            value={formatPct(stats.scored_1st_rate_season)}
+          />
           <StatRow label={splitLabel} value={formatPct(stats.scored_1st_rate_split)} />
           <StatRow label="OPS" value={formatStat(stats.ops)} />
           <StatRow label="OBP" value={formatStat(stats.obp)} />
@@ -42,7 +45,7 @@ export function TeamStatsCard({ team, stats, splitLabel }: TeamStatsCardProps) {
           <StatRow label="Games Played" value={formatCount(stats.games_prior)} />
         </div>
       ) : (
-        <p className="text-sm text-slate-400">No stats available yet.</p>
+        <p className="text-sm text-muted-foreground">No stats available yet.</p>
       )}
     </div>
   );

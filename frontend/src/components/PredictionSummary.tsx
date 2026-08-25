@@ -10,8 +10,8 @@ interface PredictionSummaryProps {
 export function PredictionSummary({ prediction, status }: PredictionSummaryProps) {
   if (!prediction) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-4">
-        <p className="text-sm text-slate-400">
+      <div className="rounded-xl border border-border bg-card p-4">
+        <p className="text-sm text-muted-foreground">
           {hasNotStarted(status)
             ? "No prediction yet — check back once both starters are announced."
             : `No prediction was made for this game (${status}).`}
@@ -21,42 +21,22 @@ export function PredictionSummary({ prediction, status }: PredictionSummaryProps
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <div className="flex items-center justify-between">
+    <div className="rounded-xl border border-border bg-card p-4">
+      <div className="grid grid-cols-2 gap-4 text-sm">
         <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Prediction
-          </div>
-          <div className="text-2xl font-bold text-slate-900">
-            {prediction.predicted_label}
-          </div>
-        </div>
-        <div className="text-right">
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
-            Confidence
-          </div>
-          <div className="text-2xl font-bold text-slate-900">
-            {formatPct(prediction.confidence)}
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-4 border-t border-slate-100 pt-4 text-sm">
-        <div>
-          <span className="text-slate-500">NRFI Probability</span>
-          <div className="font-medium text-slate-900">
+          <span className="text-muted-foreground">NRFI Probability</span>
+          <div className="font-mono font-medium text-foreground">
             {formatPct(prediction.nrfi_probability)}
           </div>
         </div>
         <div>
-          <span className="text-slate-500">YRFI Probability</span>
-          <div className="font-medium text-slate-900">
+          <span className="text-muted-foreground">YRFI Probability</span>
+          <div className="font-mono font-medium text-foreground">
             {formatPct(prediction.yrfi_probability)}
           </div>
         </div>
       </div>
-
-      <div className="mt-3 text-xs text-slate-400">
+      <div className="mt-3 border-t border-border pt-3 text-xs text-muted-foreground">
         {prediction.model_name} · {prediction.model_version}
       </div>
     </div>

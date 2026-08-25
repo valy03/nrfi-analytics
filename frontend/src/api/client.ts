@@ -1,4 +1,5 @@
 import type {
+  AccuracyBucket,
   AccuracyReport,
   GameDetail,
   GameSummary,
@@ -106,6 +107,18 @@ export async function getAccuracyReport(
 ): Promise<AccuracyReport> {
   const qs = modelVersion ? `?model_version=${encodeURIComponent(modelVersion)}` : "";
   return fetchJson<AccuracyReport>(`/api/history/accuracy${qs}`, signal);
+}
+
+export async function getTopPicksAccuracy(
+  topN?: number,
+  modelVersion?: string,
+  signal?: AbortSignal
+): Promise<AccuracyBucket> {
+  const params = new URLSearchParams();
+  if (topN !== undefined) params.set("top_n", String(topN));
+  if (modelVersion) params.set("model_version", modelVersion);
+  const qs = params.size ? `?${params}` : "";
+  return fetchJson<AccuracyBucket>(`/api/history/top-picks-accuracy${qs}`, signal);
 }
 
 export async function getNrfiFrequency(signal?: AbortSignal): Promise<NrfiFrequencyPoint[]> {

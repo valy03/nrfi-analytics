@@ -251,6 +251,48 @@ def test_recent_form_window_forgets_old_games():
     assert last["home_sp_nrfi_rate_recent"] > last["home_sp_nrfi_rate"]
 
 
+def test_recent_form_uses_its_own_shrinkage_constant(monkeypatch):
+    """Regression guard for the borrowed-constant bug: the 5-start recent
+    feature must read PITCHER_NRFI_RECENT_K, not the career-fit
+    PITCHER_NRFI_K reused for it before this was measured separately.
+    """
+    games, team_lines, pitcher_lines = [], [], []
+    day = dt.date(2024, 4, 1)
+    for i in range(25):
+        date = day + dt.timedelta(days=2 * i)
+        pk = 880_000 + i
+        runs = 2 if i < 20 else 0
+        games.append(_game(pk, date, nrfi=(runs == 0)))
+        team_lines += [
+            _team_line(pk, date, HOME_TEAM, True, runs=0),
+            _team_line(pk, date, AWAY_TEAM, False, runs=runs),
+        ]
+        pitcher_lines += [
+            _pitcher_line(pk, date, HOME_SP, runs=runs),
+            _pitcher_line(pk, date, AWAY_SP, runs=0),
+        ]
+    final_date = day + dt.timedelta(days=2 * 25)
+    games.append(_game(870_200, final_date, nrfi=None))
+
+    games_df = pd.DataFrame(games)
+    team_df = pd.DataFrame(team_lines)
+    pitcher_df = pd.DataFrame(pitcher_lines)
+
+    default_rate = compute_features(games_df, team_df, pitcher_df).iloc[-1][
+        "home_sp_nrfi_rate_recent"
+    ]
+
+    monkeypatch.setattr(cfg, "PITCHER_NRFI_RECENT_K", 5.0)
+    patched_rate = compute_features(games_df, team_df, pitcher_df).iloc[-1][
+        "home_sp_nrfi_rate_recent"
+    ]
+
+    # A much smaller k trusts the (perfect) recent window far more — if
+    # this doesn't move, the feature is silently reading a different
+    # constant (i.e. PITCHER_NRFI_K) instead of the patched one.
+    assert patched_rate > default_rate
+
+
 def test_home_away_split_uses_the_right_slice():
     """Home team's home record, away team's road record — not their overall."""
     games, team_lines, pitcher_lines = [], [], []

@@ -48,6 +48,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.db.session import session_scope
+from app.features.config import PITCHER_FORM_WINDOW
 
 # Seasons the constants are fitted on. Deliberately excludes the later years
 # so M5/M6 can hold them out honestly.
@@ -102,6 +103,58 @@ def estimate_k(
         talent_sd=float(np.sqrt(var_talent)),
         k=float(unit_variance / var_talent),
         entities=len(observed),
+    )
+
+
+_PITCHER_STARTS_SQL = """
+    SELECT s.pitcher_id,
+           g.game_date,
+           CASE WHEN s.runs_1st = 0 THEN 1.0 ELSE 0.0 END AS nrfi
+      FROM pitcher_game_stats s
+      JOIN games g ON g.game_pk = s.game_pk
+     WHERE s.is_starter AND g.season BETWEEN :lo AND :hi
+     ORDER BY s.pitcher_id, g.game_date
+"""
+
+
+def estimate_recent_k(
+    session: Session,
+    window: int,
+    seasons: tuple[int, int] = FIT_SEASONS,
+) -> ShrinkageEstimate:
+    """Shrinkage constant for a *rolling N-start* rate, not a career one.
+
+    ``PITCHER_NRFI_K`` (182 starts) was fit against each pitcher's full
+    career rate — reusing it for the 5-start "recent form" feature was the
+    bug this exists to fix: at n=5, k=182 means the pitcher's actual last 5
+    starts contribute ~5/187 of the estimate, so the feature reads as
+    "league average" almost regardless of what he actually just did.
+
+    This asks the right question instead: take every real 5-start window in
+    a pitcher's game log and measure how much *those windows* vary beyond
+    what pure 5-start sampling noise would produce on its own. A window's
+    "true" rate can differ from another window — of the same or a different
+    pitcher — for entirely real reasons (a better pitcher, a genuine
+    hot/cold stretch); this decomposition doesn't care which, only how much
+    of the spread survives once binomial noise at n=``window`` is subtracted
+    out. That's a different, and for this feature the correct, quantity
+    from "how much does true talent vary across a full career."
+    """
+    starts = pd.read_sql(
+        text(_PITCHER_STARTS_SQL),
+        session.connection(),
+        params={"lo": seasons[0], "hi": seasons[1]},
+    )
+    rolled = (
+        starts.groupby("pitcher_id")["nrfi"]
+        .rolling(window, min_periods=window)
+        .mean()
+        .droplevel(0)
+        .dropna()
+    )
+    counts = np.full(len(rolled), float(window))
+    return estimate_k(
+        rolled.to_numpy(), counts, f"pitcher NRFI% (last {window} starts)"
     )
 
 
@@ -186,6 +239,7 @@ def estimate_all(
             unit_variance=float(teams.runs_var.mean()),
         ),
         estimate_k(parks.nrfi_rate, parks.games, "park NRFI% (games)"),
+        estimate_recent_k(session, PITCHER_FORM_WINDOW, seasons),
     ]
 
 
