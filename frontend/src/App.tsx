@@ -9,7 +9,7 @@ import { HistoryPage } from "./pages/HistoryPage";
 function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-background">
+      <div className="min-h-screen overflow-x-hidden bg-background">
         <NavBar />
         <Routes>
           <Route path="/" element={<Dashboard />} />
