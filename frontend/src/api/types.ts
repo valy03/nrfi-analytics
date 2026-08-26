@@ -96,6 +96,8 @@ export interface GameSummary {
   home_pitcher: Pitcher | null;
   away_pitcher: Pitcher | null;
   prediction: Prediction | null;
+  correct: boolean | null;
+  actual_result: ActualResult | null;
   weather: Weather | null;
 }
 
@@ -112,6 +114,7 @@ export interface GameDetail {
   home_team_stats: TeamStats | null;
   away_team_stats: TeamStats | null;
   prediction: Prediction | null;
+  correct: boolean | null;
   explanation: string[];
   actual_result: ActualResult | null;
   weather: Weather | null;

@@ -8,6 +8,7 @@ import { OddsSummary } from "../components/OddsSummary";
 import { PitcherDetailCard } from "../components/PitcherDetailCard";
 import { PredictionBadge } from "../components/PredictionBadge";
 import { PredictionSummary } from "../components/PredictionSummary";
+import { ResultBanner } from "../components/ResultBanner";
 import { TeamLogo } from "../components/TeamLogo";
 import { TeamStatsCard } from "../components/TeamStatsCard";
 import { WeatherSummary } from "../components/WeatherSummary";
@@ -94,6 +95,17 @@ function GameDetailContent({ game }: { game: GameDetail }) {
               <PredictionBadge prediction={prediction} status={game.status} />
               <WeatherSummary weather={game.weather} />
             </div>
+            {game.correct !== null && prediction && game.actual_result && (
+              <div className="mt-4">
+                <ResultBanner
+                  correct={game.correct}
+                  predictedLabel={prediction.predicted_label}
+                  actualResult={game.actual_result}
+                  homeTeam={game.home_team}
+                  awayTeam={game.away_team}
+                />
+              </div>
+            )}
           </div>
           {probability != null && (
             <div className="flex shrink-0 justify-center md:justify-end">

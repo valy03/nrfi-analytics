@@ -5,6 +5,7 @@ import { formatMoneyline } from "../lib/format";
 import { getTeamColor } from "../lib/teamColors";
 import { PredictionBadge } from "./PredictionBadge";
 import { TeamLogo } from "./TeamLogo";
+import { ResultStamp } from "./ResultStamp";
 import { WeatherSummary } from "./WeatherSummary";
 
 function formatStartTime(startTimeUtc: string | null): string {
@@ -70,9 +71,12 @@ export function GameCard({ game, reason, fairOdds }: GameCardProps) {
       }`}
     >
       <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-xs text-muted-foreground">
-        <span className="inline-flex items-center gap-1">
-          <Clock className="size-3.5" aria-hidden="true" />
-          {formatStartTime(game.start_time_utc)}
+        <span className="inline-flex items-center gap-2">
+          <span className="inline-flex items-center gap-1">
+            <Clock className="size-3.5" aria-hidden="true" />
+            {formatStartTime(game.start_time_utc)}
+          </span>
+          {game.correct !== null && <ResultStamp correct={game.correct} />}
         </span>
         <span className="inline-flex items-center gap-1">
           <MapPin className="size-3.5" aria-hidden="true" />

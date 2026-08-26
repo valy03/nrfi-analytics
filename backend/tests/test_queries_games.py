@@ -10,7 +10,7 @@ import datetime as dt
 
 import pytest
 
-from app.models import Game, Pitcher, PitcherGameStats, Prediction, Team
+from app.models import Game, Pitcher, PitcherGameStats, Prediction, PredictionResult, Team
 from app.prediction.infer import ChampionNotFoundError
 from app.queries import games as games_queries
 
@@ -119,6 +119,54 @@ def test_games_for_date_includes_prediction_and_pitcher_rates(session, champion)
     assert row.prediction.predicted_label == "NRFI"
     assert row.home_pitcher.nrfi_rate_career == pytest.approx(0.75)
     assert row.away_pitcher.nrfi_rate_career == pytest.approx(0.65)
+
+
+def test_games_for_date_includes_correct_and_actual_result_once_graded(session, champion):
+    _teams_and_pitchers(session)
+    game = _game(
+        session,
+        status="Final",
+        nrfi=True,
+        home_runs_1st=0,
+        away_runs_1st=0,
+        first_inning_runs=0,
+        home_score=4,
+        away_score=2,
+    )
+    prediction = _prediction(game.game_pk, label="NRFI")
+    session.add(prediction)
+    session.flush()
+    session.add(
+        PredictionResult(
+            prediction_id=prediction.id,
+            game_pk=game.game_pk,
+            actual_label="NRFI",
+            correct=True,
+        )
+    )
+    session.flush()
+
+    rows = games_queries.games_for_date(session, GAME_DATE)
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.correct is True
+    assert row.actual_result is not None
+    assert row.actual_result.nrfi is True
+    assert row.actual_result.home_score == 4
+
+
+def test_games_for_date_correct_is_none_when_ungraded(session, champion):
+    _teams_and_pitchers(session)
+    game = _game(session)
+    session.add(_prediction(game.game_pk))
+    session.flush()
+
+    rows = games_queries.games_for_date(session, GAME_DATE)
+
+    assert len(rows) == 1
+    assert rows[0].correct is None
+    assert rows[0].actual_result is None
 
 
 def test_games_for_date_prediction_is_none_without_a_champion_match(session, monkeypatch):
@@ -277,6 +325,47 @@ def test_game_detail_actual_result_present_once_labeled(session, champion):
     assert detail.actual_result is not None
     assert detail.actual_result.nrfi is False
     assert detail.actual_result.home_score == 4
+
+
+def test_game_detail_includes_correct_once_graded(session, champion):
+    _teams_and_pitchers(session)
+    game = _game(
+        session,
+        status="Final",
+        home_runs_1st=1,
+        away_runs_1st=0,
+        first_inning_runs=1,
+        nrfi=False,
+        home_score=4,
+        away_score=2,
+    )
+    prediction = _prediction(game.game_pk, label="YRFI")
+    session.add(prediction)
+    session.flush()
+    session.add(
+        PredictionResult(
+            prediction_id=prediction.id,
+            game_pk=game.game_pk,
+            actual_label="YRFI",
+            correct=True,
+        )
+    )
+    session.flush()
+
+    detail = games_queries.game_detail(session, game.game_pk)
+
+    assert detail.correct is True
+
+
+def test_game_detail_correct_is_none_when_ungraded(session, champion):
+    _teams_and_pitchers(session)
+    game = _game(session)
+    session.add(_prediction(game.game_pk))
+    session.flush()
+
+    detail = games_queries.game_detail(session, game.game_pk)
+
+    assert detail.correct is None
 
 
 def test_game_detail_recent_starts_only_include_strictly_earlier_games(session, champion):

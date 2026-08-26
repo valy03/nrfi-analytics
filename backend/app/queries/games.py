@@ -21,7 +21,7 @@ import datetime as dt
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Game, Pitcher, PitcherGameStats, Prediction, Team
+from app.models import Game, Pitcher, PitcherGameStats, Prediction, PredictionResult, Team
 from app.prediction.infer import ChampionNotFoundError, champion_identity
 from app.queries.explain import generate_explanation
 from app.schemas.games import (
@@ -154,6 +154,25 @@ def _champion_predictions(session: Session, game_pks: list[int]) -> dict[int, Pr
     return {p.game_pk: p for p in rows}
 
 
+def _champion_results(session: Session, game_pks: list[int]) -> dict[int, bool]:
+    """Graded correctness per game, for the current champion's predictions
+    only — a blank result the same way ``_champion_predictions`` returns one
+    when there's no champion yet or nothing's been graded.
+    """
+    if not game_pks:
+        return {}
+    try:
+        _, version = champion_identity()
+    except ChampionNotFoundError:
+        return {}
+    rows = session.execute(
+        select(PredictionResult.game_pk, PredictionResult.correct)
+        .join(Prediction, Prediction.id == PredictionResult.prediction_id)
+        .where(Prediction.game_pk.in_(game_pks), Prediction.model_version == version)
+    ).all()
+    return {game_pk: correct for game_pk, correct in rows}
+
+
 def _champion_prediction(session: Session, game_pk: int) -> Prediction | None:
     predictions = _champion_predictions(session, [game_pk])
     return predictions.get(game_pk)
@@ -198,6 +217,7 @@ def games_for_date(
         return []
 
     predictions = _champion_predictions(session, [g.game_pk for g in games])
+    results = _champion_results(session, [g.game_pk for g in games])
     teams = _teams_by_id(
         session, {g.home_team_id for g in games} | {g.away_team_id for g in games}
     )
@@ -229,6 +249,8 @@ def games_for_date(
                     pitchers.get(game.away_probable_pitcher_id), "away", features
                 ),
                 prediction=_prediction_out(pred),
+                correct=results.get(game.game_pk),
+                actual_result=_actual_result_out(game),
                 weather=_weather_out(game),
             )
         )
@@ -336,6 +358,8 @@ def game_detail(session: Session, game_pk: int) -> GameDetail | None:
             session, away_pitcher_row.id, game.game_date
         )
 
+    correct = _champion_results(session, [game_pk]).get(game_pk)
+
     return GameDetail(
         game_pk=game.game_pk,
         game_date=game.game_date,
@@ -349,6 +373,7 @@ def game_detail(session: Session, game_pk: int) -> GameDetail | None:
         home_team_stats=_team_stats_out("home", features),
         away_team_stats=_team_stats_out("away", features),
         prediction=_prediction_out(prediction),
+        correct=correct,
         explanation=generate_explanation(prediction) if prediction else [],
         actual_result=_actual_result_out(game),
         weather=_weather_out(game),

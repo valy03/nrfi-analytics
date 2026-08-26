@@ -127,6 +127,8 @@ class GameSummary(BaseModel):
     home_pitcher: PitcherOut | None
     away_pitcher: PitcherOut | None
     prediction: PredictionOut | None
+    correct: bool | None = None
+    actual_result: ActualResultOut | None = None
     weather: WeatherOut | None = None
 
 
@@ -145,6 +147,7 @@ class GameDetail(BaseModel):
     home_team_stats: TeamStatsOut | None
     away_team_stats: TeamStatsOut | None
     prediction: PredictionOut | None
+    correct: bool | None = None
     explanation: list[str] = []
     actual_result: ActualResultOut | None = None
     weather: WeatherOut | None = None

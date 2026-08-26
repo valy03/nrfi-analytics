@@ -6,6 +6,7 @@ import { getTeamColor } from "../lib/teamColors";
 import { ConfidenceDial } from "./ConfidenceDial";
 import { GameCard } from "./GameCard";
 import { PredictionBadge } from "./PredictionBadge";
+import { ResultBanner } from "./ResultBanner";
 import { TeamLogo } from "./TeamLogo";
 
 export interface TopPick {
@@ -59,6 +60,18 @@ export function TopPicks({ picks }: TopPicksProps) {
           </span>
           <PredictionBadge prediction={featurePrediction} status={feature.game.status} />
         </div>
+
+        {feature.game.correct !== null && feature.game.actual_result && (
+          <div className="mb-5">
+            <ResultBanner
+              correct={feature.game.correct}
+              predictedLabel={featurePrediction.predicted_label}
+              actualResult={feature.game.actual_result}
+              homeTeam={feature.game.home_team}
+              awayTeam={feature.game.away_team}
+            />
+          </div>
+        )}
 
         <div className="flex flex-col gap-6 md:flex-row md:items-center">
           <div className="flex items-center gap-4">
