@@ -21,12 +21,21 @@ vite.config.d.ts
 # Data (M2 backfill cache + derived datasets — don't commit)
 data/raw/
 data/processed/
-backend/data/
+backend/data/raw/
+backend/data/processed/
 *.parquet
 
-# ML artifacts (M6 — models get versioned separately, not via git)
+# ML artifacts (M6 — models get versioned separately, not via git),
+# except the production champion: Render's Docker build has no separate
+# artifact-upload step, so the deployed image needs these two files
+# actually committed rather than regenerated at deploy time (a fresh
+# retrain would be a different model than the one M6 evaluated against
+# real held-out data).
 *.joblib
 *.pkl
+backend/data/models/*
+!backend/data/models/champion.joblib
+!backend/data/models/champion_metrics.json
 
 # Editor / OS
 .vscode/

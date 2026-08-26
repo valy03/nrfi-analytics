@@ -19,6 +19,11 @@ services:
   backend:
     build: ./backend
     restart: unless-stopped
+    # The Dockerfile's own CMD is the production default (no --reload,
+    # Render-assigned $PORT) — local dev overrides it here to add hot
+    # reload back, since the bind-mounted volume below is what makes that
+    # useful in the first place.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     env_file:
       - .env
     environment:

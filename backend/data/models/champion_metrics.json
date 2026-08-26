@@ -1,0 +1,62 @@
+{
+  "model_name": "logistic_regression_baseline",
+  "model_version": "m5-v1",
+  "train": {
+    "seasons": [
+      2018,
+      2019,
+      2020,
+      2021,
+      2022,
+      2023
+    ],
+    "n": 13047,
+    "nrfi_rate": 0.4966659002069441
+  },
+  "test": {
+    "seasons": [
+      2024,
+      2025,
+      2026
+    ],
+    "n": 4969,
+    "nrfi_rate": 0.5143892131213524
+  },
+  "model": {
+    "n": 4969,
+    "accuracy": 0.5188166633125377,
+    "precision": 0.5308641975308642,
+    "recall": 0.5551643192488263,
+    "f1": 0.5427423981640849,
+    "roc_auc": 0.5157827287897389,
+    "log_loss": 0.6946799319449249
+  },
+  "reference_majority_class": {
+    "n": 4969,
+    "accuracy": 0.4856107868786476,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "roc_auc": 0.5,
+    "log_loss": 17.766374011952447
+  },
+  "reference_league_average": {
+    "n": 4969,
+    "accuracy": 0.4856107868786476,
+    "precision": 0.0,
+    "recall": 0.0,
+    "f1": 0.0,
+    "roc_auc": 0.5,
+    "log_loss": 0.6933613166314129
+  },
+  "criteria": {
+    "beats_majority_accuracy": true,
+    "ranks_better_than_chance": true,
+    "beats_league_log_loss": false
+  },
+  "selection": {
+    "winner_model_name": "logistic_regression_baseline",
+    "winner_model_version": "m5-v1",
+    "rationale": "Selected logistic_regression_baseline (m5-v1). Beats xgboost by +0.0074 AUC on the held-out set (0.5158 vs 0.5084)."
+  }
+}
