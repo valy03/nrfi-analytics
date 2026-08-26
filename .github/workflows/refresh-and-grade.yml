@@ -1,0 +1,49 @@
+name: Refresh Results & Grade
+
+# The gap the M7/M8 design always had: predictions generate once a day,
+# but nothing ever re-checked whether a game finished, and grading was
+# entirely manual all session. This is that missing piece — re-ingest
+# yesterday (catches games that finish after midnight, e.g. extra
+# innings) and today (catches everything else), then grade whatever just
+# became gradeable. Every run is idempotent (app.ingestion.daily and
+# app.grading.results both skip already-finished/graded rows), so running
+# this often just means results land sooner, never duplicate work.
+
+on:
+  schedule:
+    - cron: "0 */2 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
+      ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - run: pip install -r requirements.txt
+
+      - name: Re-ingest yesterday and today (catches cross-midnight finishes)
+        run: |
+          YESTERDAY=$(python -c "
+          from app.collection.mlb_stats import mlb_today
+          import datetime as dt
+          print(mlb_today() - dt.timedelta(days=1))
+          ")
+          python -m app.ingestion.daily --date "$YESTERDAY"
+          python -m app.ingestion.daily
+
+      - name: Grade anything newly gradeable
+        run: python -m app.grading.results

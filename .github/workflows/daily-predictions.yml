@@ -1,0 +1,45 @@
+name: Daily Predictions
+
+# The M7 job this replaces: app.prediction.job already refreshes today's
+# schedule/starters and labels any already-finished games internally
+# (app.ingestion.daily.load_date), so this only needs to call the job
+# itself plus grading. Runs once a day, well ahead of the earliest
+# getaway-day first pitch (11:00 AM ET) — mirrors app.prediction.scheduler's
+# intended 09:00 US/Eastern cadence, without needing a laptop to stay awake.
+#
+# Cron is UTC and not DST-adjusted: 13:00 UTC = 9:00 AM EDT (in-season,
+# roughly April-October). During EST it'd fire at 8:00 AM ET instead —
+# still comfortably ahead of first pitch, so left as one fixed cron rather
+# than a DST-aware schedule.
+
+on:
+  schedule:
+    - cron: "0 13 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  predict:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      OPENWEATHER_API_KEY: ${{ secrets.OPENWEATHER_API_KEY }}
+      ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - run: pip install -r requirements.txt
+
+      - name: Generate today's predictions
+        run: python -m app.prediction.job
+
+      - name: Grade anything newly gradeable
+        run: python -m app.grading.results
