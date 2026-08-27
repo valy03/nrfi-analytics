@@ -14,7 +14,11 @@ name: Daily Predictions
 
 on:
   schedule:
-    - cron: "0 13 * * *"
+    # 13:17 UTC, not 13:00 — GitHub's docs warn scheduled runs are more
+    # likely to be delayed/dropped right at the top of the hour, and a
+    # missed once-a-day run here has no near-term self-heal the way the
+    # every-2-hours refresh job does.
+    - cron: "17 13 * * *"
   workflow_dispatch: {}
 
 jobs:

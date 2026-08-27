@@ -11,7 +11,10 @@ name: Refresh Results & Grade
 
 on:
   schedule:
-    - cron: "0 */2 * * *"
+    # Off the top of the hour deliberately — GitHub's own docs warn that
+    # scheduled runs are more likely to be delayed or dropped right at :00,
+    # which is exactly when this used to silently miss a couple of slots.
+    - cron: "17 */2 * * *"
   workflow_dispatch: {}
 
 jobs:
